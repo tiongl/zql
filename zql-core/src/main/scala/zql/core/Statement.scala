@@ -7,6 +7,7 @@ trait Compilable {
   def compile(): Executable[Table]
 }
 
+
 trait StatementWrapper extends Compilable {
   def statement(): Statement
 

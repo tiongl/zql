@@ -5,18 +5,6 @@ package zql
   */
 package object core {
 
-  implicit def numbericNamedColumn(col: GenericNamedColumn): NumericNamedColumn = {
-    new NumericNamedColumn(col.name)
-  }
-
-//  implicit def numbericNamedColumn(symbol: Symbol): NumericNamedColumn = {
-//    new NumericNamedColumn(symbol)
-//  }
-//
-//  implicit def stringNamedColumn(symbol: Symbol): StringNamedColumn = {
-//    new StringNamedColumn(symbol)
-//  }
-
   implicit def genericNamedColumn(symbol: Symbol): GenericNamedColumn = {
     new GenericNamedColumn(symbol)
   }
@@ -29,5 +17,13 @@ package object core {
   def SUM(col: GenericNamedColumn): Sum = SUM(new NumericNamedColumn(col.name)) //upgrade to numeric column
 
   def SUM(col: NumericNamedColumn): Sum = new Sum(col)
+
+  def NOT(col: GenericNamedColumn): NotCondition = NOT(new BoolNamedColumn(col.name))
+
+  def NOT(col: BoolNamedColumn): NotCondition = new NotCondition(col)
+
+  def NOT(col: Condition): NotCondition = new NotCondition(col)
+
+  def *(): Column = new AllColumn()
 
 }
