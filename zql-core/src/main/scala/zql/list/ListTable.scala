@@ -23,7 +23,7 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
           filteredData =>
             val selects = stmt._selects.flatMap(compileSelect[ROW](_))
             //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
-            val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction]).map(_._2).toArray
+            val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
             val groupedProcessData = if (stmt._groupBy!=null){
               val groupByExtractor = stmt._groupBy.map(compileColumn(_))
               val groupedList = data.groupBy{
@@ -80,21 +80,21 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
 
   override def collectAsList = data
 
-  override def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW]] = {
+  override def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW, _]] = {
     col match {
       case ac: AllColumn =>
-        schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW]]).toSeq
+        schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW, _]]).toSeq
       case c: Column =>
         Seq(compileColumn(col))
     }
   }
 
-  override def compileColumn[ROW](col: Column): ColumnAccessor[ROW] = {
+  override def compileColumn[ROW](col: Column): ColumnAccessor[ROW, _] = {
     col match {
-      case cc: WithAccessor =>
+      case cc: WithAccessor[_] =>
         cc.getColumnAccessor[ROW](ListTable.this)
       case c: NamedColumn[_] =>
-        schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[ROW]]
+        schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[ROW, _]]
       case _ =>
         throw new IllegalArgumentException("Unknown column type " + col)
     }

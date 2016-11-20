@@ -14,17 +14,17 @@ class ReflectedSchema[ROW: ClassTag](columnNames: Set[Symbol]) extends Schema[RO
     s => (s, getAccessor[ROW](s.name))
   }.toMap
 
-  private def getAccessor[IN](name: String): ColumnAccessor[IN] = {
+  private def getAccessor[ROW](name: String): ColumnAccessor[ROW, Any] = {
     val field = Try(ctag.getField(name)).getOrElse(null)
     if (field!=null){
-      new ColumnAccessor[IN](field.getType) {
-        def apply(obj: IN) = field.get(obj)
+      new ColumnAccessor[ROW, Any]() {
+        def apply(obj: ROW) = field.get(obj)
       }
     } else {
       val getter = ctag.getMethod(name)
       if (getter!=null){
-        new ColumnAccessor[IN](getter.getReturnType) {
-          def apply(obj: IN) = getter.invoke(obj)
+        new ColumnAccessor[ROW, Any]() {
+          def apply(obj: ROW) = getter.invoke(obj)
         }
       } else {
         throw new IllegalArgumentException("Unknown column " + name + " for type " + ctag)
