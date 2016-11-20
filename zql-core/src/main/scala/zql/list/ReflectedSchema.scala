@@ -7,11 +7,11 @@ import zql.core._
 import scala.reflect.ClassTag
 import scala.util.Try
 
-class ReflectedSchema[T: ClassTag](columnNames: Set[Symbol]) extends Schema[T]{
-  val ctag = scala.reflect.classTag[T].runtimeClass
+class ReflectedSchema[ROW: ClassTag](columnNames: Set[Symbol]) extends Schema[ROW]{
+  val ctag = scala.reflect.classTag[ROW].runtimeClass
 
   val columnAccessors = columnNames.map{
-    s => (s, getAccessor[T](s.name))
+    s => (s, getAccessor[ROW](s.name))
   }.toMap
 
   private def getAccessor[IN](name: String): ColumnAccessor[IN] = {

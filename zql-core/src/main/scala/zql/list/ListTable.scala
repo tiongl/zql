@@ -7,23 +7,21 @@ import scala.reflect.ClassTag
 /**
   * Created by tiong on 11/17/16.
   */
-class ListTable[T: ClassTag](val data: List[T], schema: Schema[T]) extends Table(schema) {
+class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends Table(schema) {
 
-  type Getter[E] = (T) => E
-
-  class DefaultCompiler(schema: Schema[T]) {
+  class DefaultCompiler(schema: Schema[ROW]) {
     def compile(stmt: Statement): Executable[Table] = {
       import zql.core.ExecutionPlan._
       val execPlan = plan("Query"){
         first("Filter the data"){
           val filteredData = if (stmt._where!=null){
-            val filterExtractor = compileColumn[T](stmt._where)
+            val filterExtractor = compileColumn[ROW](stmt._where)
             data.filter(d => filterExtractor(d).asInstanceOf[Boolean])
           } else data
           filteredData
         }.next("Grouping the data") {
           filteredData =>
-            val selects = stmt._selects.flatMap(compileSelect[T](_))
+            val selects = stmt._selects.flatMap(compileSelect[ROW](_))
             //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
             val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction]).map(_._2).toArray
             val groupedProcessData = if (stmt._groupBy!=null){
@@ -82,21 +80,21 @@ class ListTable[T: ClassTag](val data: List[T], schema: Schema[T]) extends Table
 
   override def collectAsList = data
 
-  override def compileSelect[D](col: Column): Seq[ColumnAccessor[D]] = {
+  override def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW]] = {
     col match {
       case ac: AllColumn =>
-        schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[D]]).toSeq
+        schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW]]).toSeq
       case c: Column =>
         Seq(compileColumn(col))
     }
   }
 
-  override def compileColumn[D](col: Column): ColumnAccessor[D] = {
+  override def compileColumn[ROW](col: Column): ColumnAccessor[ROW] = {
     col match {
       case cc: WithAccessor =>
-        cc.getColumnAccessor[D](ListTable.this)
+        cc.getColumnAccessor[ROW](ListTable.this)
       case c: NamedColumn[_] =>
-        schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[D]]
+        schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[ROW]]
       case _ =>
         throw new IllegalArgumentException("Unknown column type " + col)
     }

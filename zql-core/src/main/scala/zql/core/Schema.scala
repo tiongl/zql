@@ -1,7 +1,7 @@
 package zql.core
 
-abstract class Schema[T] {
-  def columnAccessors(): Map[Symbol, ColumnAccessor[T]]
+abstract class Schema[ROW] {
+  def columnAccessors(): Map[Symbol, ColumnAccessor[ROW]]
 }
 
 class RowSchema(val columns: Seq[Symbol]) extends Schema[Row] {
