@@ -10,7 +10,7 @@ class DslTest extends FlatSpec with Matchers with PersonExample{
     //all the possible selects
     table select (*)
     table select ('firstName, 'lastName, "Test") //simple select
-    table select ('firstName, SUM('age))         //select with UDF
+    table select ('firstName, sum('age))         //select with UDF
     table select ('firstName) where ('firstName === 'lastName) //select with condition
     table select ('firstName) groupBy('firstName, 'lastName) //select with group by
     table select ('firstName) orderBy ('firstName) //select with order by
@@ -34,11 +34,11 @@ class DslTest extends FlatSpec with Matchers with PersonExample{
 
     //all supported condition
     ('firstName === 'lastName) and ('firstName !== 'lastName)
-    ('firstName === 'lastName) or ('firstName !== 'lastName)
+    ('firstName === 'lastName) or NOT('firstName !== 'lastName)
 
     //functions
     NOT('age)
-    SUM('age)
+    sum('age)
 
   }
 }

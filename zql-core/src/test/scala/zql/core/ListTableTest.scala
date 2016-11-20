@@ -33,7 +33,7 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
 
   it should "support simple select with aggregation" in {
     executeAndMatch(
-      table select ('firstName, 'lastName, SUM('age)),
+      table select ('firstName, 'lastName, sum('age)),
       List(new Row(Array(data(0).firstName, data(0).lastName, data.map(_.age).sum)))
     )
   }
