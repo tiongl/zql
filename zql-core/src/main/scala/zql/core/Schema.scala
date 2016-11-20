@@ -1,8 +1,5 @@
 package zql.core
 
-import zql.list.ColumnAccessor
-
-
 abstract class Schema[T] {
   def columnAccessors(): Map[Symbol, ColumnAccessor[T]]
 }

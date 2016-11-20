@@ -9,10 +9,19 @@ package object core {
     new GenericNamedColumn(symbol)
   }
 
-
   implicit def stringLiteralColumn(string: String): StringLiteralColumn = new StringLiteralColumn(string)
 
   implicit def numericColumn(number: Number): NumericLiteralColumn = new NumericLiteralColumn(number)
+
+  implicit def intColumn(number: Int): NumericLiteralColumn = new NumericLiteralColumn(number)
+
+  implicit def floatColumn(number: Float): NumericLiteralColumn = new NumericLiteralColumn(number)
+
+  implicit def longColumn(number: Long): NumericLiteralColumn = new NumericLiteralColumn(number)
+
+  implicit def doubleColumn(number: Double): NumericLiteralColumn = new NumericLiteralColumn(number)
+
+  implicit def booleanColumn(bool: Boolean): BooleanLiteralColumn = new BooleanLiteralColumn(bool)
 
   def SUM(col: GenericNamedColumn): Sum = SUM(new NumericNamedColumn(col.name)) //upgrade to numeric column
 

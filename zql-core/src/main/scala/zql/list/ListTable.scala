@@ -25,7 +25,7 @@ class ListTable[T: ClassTag](val data: List[T], schema: Schema[T]) extends Table
           filteredData =>
             val selects = stmt._selects.flatMap(compileSelect[T](_))
             //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
-            val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
+            val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction]).map(_._2).toArray
             val groupedProcessData = if (stmt._groupBy!=null){
               val groupByExtractor = stmt._groupBy.map(compileColumn(_))
               val groupedList = data.groupBy{
@@ -93,7 +93,7 @@ class ListTable[T: ClassTag](val data: List[T], schema: Schema[T]) extends Table
 
   override def compileColumn[D](col: Column): ColumnAccessor[D] = {
     col match {
-      case cc: CompositeColumn[_] =>
+      case cc: WithAccessor =>
         cc.getColumnAccessor[D](ListTable.this)
       case c: NamedColumn[_] =>
         schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[D]]

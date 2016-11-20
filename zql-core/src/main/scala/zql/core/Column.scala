@@ -1,8 +1,9 @@
 package zql.core
 
-import zql.list.ColumnAccessor
-
 import scala.reflect.ClassTag
+
+/** allow accessing a column from type T **/
+abstract class ColumnAccessor[IN](val dType: Class[_]) extends((IN) => Any)
 
 /** a generic column **/
 abstract class Column {
@@ -24,10 +25,13 @@ abstract class Column {
 
 abstract class TypedColumn[T] extends Column
 
-abstract class CompositeColumn[T](val cols: Column*) extends TypedColumn[T] {
+trait WithAccessor extends Column {
+  def getColumnAccessor[IN](compiler: Table): ColumnAccessor[IN]
+}
+
+abstract class CompositeColumn[T](val cols: Column*) extends TypedColumn[T] with WithAccessor {
   lazy val requiredColumns = cols.map(_.requiredColumns).reduce(_ ++ _)
 
-  def getColumnAccessor[T](compiler: Table): ColumnAccessor[T]
 }
 
 //boolean condition
@@ -42,55 +46,55 @@ abstract class Condition(cols: Column*) extends CompositeColumn[Boolean](cols: _
 class AndCondition(val a: TypedColumn[Boolean], val b: TypedColumn[Boolean]) extends Condition(a, b) {
   def name = Symbol(s"AND(${a.getName},${b.getName})")
 
-  override def getColumnAccessor[T](compiler: Table): ColumnAccessor[T] = new ColumnAccessor[T](classOf[Boolean]){
-    val aa = compiler.compileColumn[T](a)
-    val bb = compiler.compileColumn[T](b)
-    def apply(obj: T) = aa.apply(obj).asInstanceOf[Boolean] && bb.apply(obj).asInstanceOf[Boolean]
+  override def getColumnAccessor[IN](compiler: Table): ColumnAccessor[IN] = new ColumnAccessor[IN](classOf[Boolean]){
+    val aa = compiler.compileColumn[IN](a)
+    val bb = compiler.compileColumn[IN](b)
+    def apply(obj: IN) = aa.apply(obj).asInstanceOf[Boolean] && bb.apply(obj).asInstanceOf[Boolean]
   }
 }
 
 class OrCondition(val a: TypedColumn[Boolean], val b: TypedColumn[Boolean]) extends Condition(a, b) {
   def name = Symbol(s"OR(${a.getName},${b.getName})")
 
-  override def getColumnAccessor[T](compiler: Table): ColumnAccessor[T] = new ColumnAccessor[T](classOf[Boolean]){
-    val aa = compiler.compileColumn[T](a)
-    val bb = compiler.compileColumn[T](b)
-    def apply(obj: T) = aa.apply(obj).asInstanceOf[Boolean] || bb.apply(obj).asInstanceOf[Boolean]
+  override def getColumnAccessor[IN](compiler: Table): ColumnAccessor[IN] = new ColumnAccessor[IN](classOf[Boolean]){
+    val aa = compiler.compileColumn[IN](a)
+    val bb = compiler.compileColumn[IN](b)
+    def apply(obj: IN) = aa.apply(obj).asInstanceOf[Boolean] || bb.apply(obj).asInstanceOf[Boolean]
   }
 }
 
 class Equals(val a: Column, val b: Column) extends Condition(a, b){
   def name = Symbol(s"Eq(${a.getName},${b.getName})")
 
-  override def getColumnAccessor[T](compiler: Table): ColumnAccessor[T] = new ColumnAccessor[T](classOf[Boolean]){
-    val aa = compiler.compileColumn[T](a)
-    val bb = compiler.compileColumn[T](b)
-    def apply(obj: T) = aa.apply(obj) == bb.apply(obj)
+  override def getColumnAccessor[IN](compiler: Table): ColumnAccessor[IN] = new ColumnAccessor[IN](classOf[Boolean]){
+    val aa = compiler.compileColumn[IN](a)
+    val bb = compiler.compileColumn[IN](b)
+    def apply(obj: IN) = aa.apply(obj) == bb.apply(obj)
   }
 }
 
 class NotEquals(val a: Column, val b: Column) extends Condition(a, b){
   def name = Symbol(s"NotEq(${a.getName},${b.getName})")
 
-  override def getColumnAccessor[T](compiler: Table): ColumnAccessor[T] = new ColumnAccessor[T](classOf[Boolean]){
-    val aa = compiler.compileColumn[T](a)
-    val bb = compiler.compileColumn[T](b)
-    def apply(obj: T) = aa.apply(obj) != bb.apply(obj)
+  override def getColumnAccessor[IN](compiler: Table): ColumnAccessor[IN] = new ColumnAccessor[IN](classOf[Boolean]){
+//    val aa = compiler.compileColumn[IN, _](a)
+//    val bb = compiler.compileColumn[IN, _](b)
+    def apply(obj: IN) = true//aa.apply(obj) != bb.apply(obj)
   }
 }
 
 class NotCondition(val a: TypedColumn[Boolean]) extends Condition(a){
   def name = Symbol(s"Not(${a.getName})")
 
-  override def getColumnAccessor[T](compiler: Table): ColumnAccessor[T] = new ColumnAccessor[T](classOf[Boolean]){
-    val aa = compiler.compileColumn[T](a)
-    def apply(obj: T) = !aa.apply(obj).asInstanceOf[Boolean]
+  override def getColumnAccessor[IN](compiler: Table): ColumnAccessor[IN] = new ColumnAccessor[IN](classOf[Boolean]){
+    val aa = compiler.compileColumn[IN](a)
+    def apply(obj: IN) = !aa.apply(obj).asInstanceOf[Boolean]
   }
 }
 
-abstract class Function[T](cols: Column*) extends CompositeColumn[T](cols: _*)
+abstract class Function(cols: Column*) extends CompositeColumn(cols: _*)
 
-abstract class AggregateFunction[T](cols: Column*) extends Function[T](cols: _*)
+abstract class AggregateFunction(cols: Column*) extends Function(cols: _*)
 
 abstract class NamedColumn[T](val name: Symbol) extends TypedColumn[T] {
   def requiredColumns = Set(name)
@@ -104,22 +108,25 @@ class GenericNamedColumn(n: Symbol) extends NamedColumn[Any](n)
 
 class BoolNamedColumn(n: Symbol) extends NamedColumn[Boolean](n)
 
-abstract case class LiteralColumn[T] extends TypedColumn[T] {
+abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] with WithAccessor {
+  def name = Symbol(value.toString)
+
   def requiredColumns = Set()
-  def value: Any
+
+  override def getColumnAccessor[IN](compiler: Table): ColumnAccessor[IN] = new ColumnAccessor[IN](classOf[String]){
+    override def apply(v1: IN): Any = value
+  }
 }
 
-class StringLiteralColumn(val value: String) extends LiteralColumn[String] {
-  def name = Symbol(value.toString)
-}
+class StringLiteralColumn(value: String) extends LiteralColumn[String](value)
 
-class NumericLiteralColumn(val value: Number) extends LiteralColumn[Number] {
-  def name = Symbol(value.toString)
-}
+class NumericLiteralColumn(value: Number) extends LiteralColumn[Number](value)
 
-abstract class MultiProjectColumn extends Column
+class BooleanLiteralColumn(value: Boolean) extends LiteralColumn[Boolean](value)
 
-class AllColumn extends Column {
+abstract class MultiColumn extends Column
+
+class AllColumn extends MultiColumn {
   def requiredColumns = Set()
   def name = Symbol("*")
 }
@@ -138,13 +145,12 @@ class Summable(val n: Number) extends Aggregatable {
   override def toString = value.toString
 }
 
-class Sum(val col: TypedColumn[Number]) extends AggregateFunction(col) {
+class Sum(val col: TypedColumn[Number]) extends AggregateFunction(col) with WithAccessor {
   def name = Symbol(s"SUM(${col.getName})")
 
   override def getColumnAccessor[T](compiler: Table): ColumnAccessor[T] = new ColumnAccessor[T](classOf[Boolean]){
-    println(col)
-    val aa = compiler.compileColumn[T](col)
-    def apply(obj: T) = new Summable(aa.apply(obj).asInstanceOf[Int])
+    val colAccessor = compiler.compileColumn[T](col)
+    def apply(obj: T) = new Summable(colAccessor.apply(obj).asInstanceOf[Int])
   }
 }
 

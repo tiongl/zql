@@ -2,8 +2,6 @@ package zql.core
 
 import java.lang.reflect.Field
 
-import zql.list.ColumnAccessor
-
 import scala.reflect.ClassTag
 
 /**
@@ -16,9 +14,9 @@ abstract class Table(val schema: Schema[_]) {
 
   def compile(stmt: Statement): Executable[Table]
 
-  def compileSelect[D](col: Column): Seq[ColumnAccessor[D]]
+  def compileSelect[IN](col: Column): Seq[ColumnAccessor[IN]]
 
-  def compileColumn[D](col: Column): ColumnAccessor[D]
+  def compileColumn[IN](col: Column): ColumnAccessor[IN]
 
   def collectAsList(): List[Any]
 }

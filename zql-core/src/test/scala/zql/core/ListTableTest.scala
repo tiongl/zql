@@ -7,14 +7,14 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
 
   def executeAndMatch(statement: Compilable, rows: List[Row]) = {
     val results = statement.compile.execute().collectAsList()
-    println(results(0))
-    println(rows(0))
-    println(results(0).equals(rows(0)))
-//    println(results.equals(rows))
     results should be (rows)
   }
 
   it should "support select literal" in {
+    executeAndMatch(
+      table select (1, "test", true),
+      data.map(p => new Row(Array(1, "test", true))).toList
+    )
   }
 
   it should "support select all" in {

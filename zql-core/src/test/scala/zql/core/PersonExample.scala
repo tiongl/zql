@@ -3,7 +3,6 @@ package zql.core
 import zql.list.{ReflectedSchema, ListTable}
 
 trait PersonExample {
-  @SchemaDef(columns = Array("id", "firstName", "lastName", "age"))
   case class Person(id: Int, val firstName: String, val lastName: String, age: Int, spouseId: Int) {
     override def toString() = "Person(%s, %s, %d)".format(firstName, lastName, age)
 
