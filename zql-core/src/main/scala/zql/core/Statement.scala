@@ -3,6 +3,13 @@ package zql.core
 trait Executable[+T]{
   def execute(): T
 }
+
+trait Compiler[T <: Table] {
+  def compile(stmt: Statement): Executable[T]
+  def compileColumn[ROW](col: Column): ColumnAccessor[ROW, _]
+  def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW, _]]
+}
+
 trait Compilable {
   def compile(): Executable[Table]
 }

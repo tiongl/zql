@@ -9,8 +9,8 @@ import scala.reflect.ClassTag
   */
 class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends Table(schema) {
 
-  class DefaultCompiler(schema: Schema[ROW]) {
-    def compile(stmt: Statement): Executable[Table] = {
+  class DefaultCompiler(schema: Schema[ROW]) extends Compiler[ListTable[_]]{
+    def compile(stmt: Statement): Executable[ListTable[_]] = {
       import zql.core.ExecutionPlan._
       val execPlan = plan("Query"){
         first("Filter the data"){
@@ -72,6 +72,26 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
       }
       execPlan
     }
+
+    def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW, _]] = {
+      col match {
+        case ac: AllColumn =>
+          schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW, _]]).toSeq
+        case c: Column =>
+          Seq(compileColumn(col))
+      }
+    }
+
+    def compileColumn[ROW](col: Column): ColumnAccessor[ROW, _] = {
+      col match {
+        case cc: WithAccessor[_] =>
+          cc.getColumnAccessor[ROW](this)
+        case c: NamedColumn[_] =>
+          schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[ROW, _]]
+        case _ =>
+          throw new IllegalArgumentException("Unknown column type " + col)
+      }
+    }
   }
 
   def compile(stmt: Statement) = {
@@ -79,24 +99,4 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
   }
 
   override def collectAsList = data
-
-  override def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW, _]] = {
-    col match {
-      case ac: AllColumn =>
-        schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW, _]]).toSeq
-      case c: Column =>
-        Seq(compileColumn(col))
-    }
-  }
-
-  override def compileColumn[ROW](col: Column): ColumnAccessor[ROW, _] = {
-    col match {
-      case cc: WithAccessor[_] =>
-        cc.getColumnAccessor[ROW](ListTable.this)
-      case c: NamedColumn[_] =>
-        schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[ROW, _]]
-      case _ =>
-        throw new IllegalArgumentException("Unknown column type " + col)
-    }
-  }
 }

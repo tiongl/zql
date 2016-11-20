@@ -14,10 +14,6 @@ abstract class Table(val schema: Schema[_]) {
 
   def compile(stmt: Statement): Executable[Table]
 
-  def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW, _]]
-
-  def compileColumn[ROW](col: Column): ColumnAccessor[ROW, _]
-
   def collectAsList(): List[Any]
 }
 
