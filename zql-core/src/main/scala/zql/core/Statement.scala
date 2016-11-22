@@ -9,7 +9,7 @@ trait Executable[+T]{
 trait Compiler[T <: Table] {
   def compile(stmt: Statement): Executable[T]
   def compileColumn[ROW](col: Column, schema: Schema[ROW]): ColumnAccessor[ROW, _]
-  def compileSelects[ROW](selects: Seq[Column], schema: Schema[ROW]): mutable.LinkedHashMap[Symbol, ColumnAccessor[ROW, _]]
+  def compileSelects[ROW](selects: Seq[Column], schema: Schema[ROW]): Seq[(Symbol, ColumnAccessor[ROW, _])]
 }
 
 trait Compilable {

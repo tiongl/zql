@@ -12,6 +12,12 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
     val results = statement.compile.execute().collectAsList()
     results should be (rows)
   }
+  it should "support select with math operations" in {
+    executeAndMatch(
+      table select (1 + 1, 'firstName, 'age + 1),
+      data.map(p => new Row(Array(2, p.firstName, p.age + 1))).toList
+    )
+  }
 
   it should "support select literal" in {
     executeAndMatch(
@@ -19,6 +25,7 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
       data.map(p => new Row(Array(1, "test", true))).toList
     )
   }
+
 
   it should "support select all" in {
     executeAndMatch(

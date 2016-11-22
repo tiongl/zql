@@ -25,6 +25,10 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
     def compile(stmt: Statement): Executable[ListTable[_]] = {
       import zql.core.ExecutionPlan._
       validate(stmt)
+
+      val selectMappings = compileSelects(stmt._selects, schema)
+      val newColumns = selectMappings.map(_._1)
+      val resultSchema = new RowSchema(newColumns)
       val execPlan = plan("Query"){
         first("Filter the data"){
           val filteredData = if (stmt._where!=null){
@@ -34,9 +38,7 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
           filteredData
         }.next("Grouping the data") {
           filteredData =>
-            val selectMappings = compileSelects(stmt._selects, schema)
-            val newSchema = new RowSchema(selectMappings.keys.toSeq)
-            val selects = selectMappings.values
+            val selects = selectMappings.map(_._2)
             //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
             val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
             val groupedProcessData = if (stmt._groupBy!=null){
@@ -48,7 +50,7 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
               ).map(_.normalize).toList
 
               val havingData = if (stmt._having!=null){
-                val havingExtractor = compileColumn[Row](stmt._having, newSchema)
+                val havingExtractor = compileColumn[Row](stmt._having, resultSchema)
                 groupedData.filter(d => havingExtractor(d).asInstanceOf[Boolean])
               } else {
                 groupedData
@@ -73,14 +75,14 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
         }.next("Return the table") {
           groupedProcessData =>
             val names = stmt._selects.map(_.getName)
-            new ListTable(groupedProcessData.toList, new RowSchema(names))
+            new ListTable(groupedProcessData.toList, resultSchema)
         }
       }
       execPlan
     }
 
-    def compileSelects[ROW](selects: Seq[Column], schema: Schema[ROW]): mutable.LinkedHashMap[Symbol, ColumnAccessor[ROW, _]] = {
-      val columnMappings = selects.flatMap {
+    def compileSelects[ROW](selects: Seq[Column], schema: Schema[ROW]): Seq[(Symbol, ColumnAccessor[ROW, _])] = {
+      selects.flatMap {
           case ac: AllColumn =>
             schema.columnAccessors().map {
               case (name, accessor) => (name, accessor.asInstanceOf[ColumnAccessor[ROW, _]])
@@ -88,22 +90,7 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
           case c: Column =>
             Seq((c.getName, compileColumn[ROW](c, schema)))
       }
-      val results = new mutable.LinkedHashMap[Symbol, ColumnAccessor[ROW, _]]
-      columnMappings.foreach {
-        mapping => results.put(mapping._1, mapping._2)
-      }
-      results
     }
-
-
-//    def compileSelect[ROW](col: Column, schema: Schema[ROW]): Seq[ColumnAccessor[ROW, _]] = {
-//      col match {
-//        case ac: AllColumn =>
-//          schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW, _]]).toSeq
-//        case c: Column =>
-//          Seq(compileColumn(col))
-//      }
-//    }
 
     def compileColumn[ROW](col: Column, schema: Schema[ROW]): ColumnAccessor[ROW, _] = {
       col match {

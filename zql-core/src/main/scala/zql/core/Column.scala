@@ -34,6 +34,16 @@ abstract class Column {
 
   def >=(other: Column): Condition = new GreaterThanEquals(castToNumeric, other.castToNumeric)
 
+  def +(other: Column): Function[Any] = new Plus(castToNumeric, other.castToNumeric)
+
+  def -(other: Column): NumericColumn = new Minus(castToNumeric, other.castToNumeric)
+
+  def *(other: Column): NumericColumn = new Multiply(castToNumeric, other.castToNumeric)
+
+  def /(other: Column): NumericColumn = new Divide(castToNumeric, other.castToNumeric)
+
+
+
   def requiredColumns: Set[Symbol]
 }
 
@@ -43,6 +53,7 @@ abstract class TypedColumn[T] extends Column
 /** just a tagging interface for numeric column **/
 trait NumericColumn extends Column
 
+//TODO: Improve the implementations
 object NumericColumn {
   def <(a: Any, b: Any): Boolean = {
     a.asInstanceOf[Int] < b.asInstanceOf[Int]
@@ -58,6 +69,25 @@ object NumericColumn {
 
   def >=(a: Any, b: Any): Boolean = {
     a.asInstanceOf[Int] >= b.asInstanceOf[Int]
+  }
+
+  def +(a: Any, b: Any): Any = {
+    a.asInstanceOf[Int] + b.asInstanceOf[Int]
+  }
+
+
+  def -(a: Any, b: Any): Any = {
+    a.asInstanceOf[Int] - b.asInstanceOf[Int]
+  }
+
+
+  def /(a: Any, b: Any): Any = {
+    a.asInstanceOf[Int] / b.asInstanceOf[Int]
+  }
+
+
+  def *(a: Any, b: Any): Any = {
+    a.asInstanceOf[Int] * b.asInstanceOf[Int]
   }
 }
 
@@ -170,8 +200,45 @@ class GreaterThanEquals(val a: NumericColumn, val b: NumericColumn) extends Cond
   }
 }
 
+class Plus(val a: Column, val b: Column) extends Function[Any](a, b) {
+  def name = Symbol(s"Plus(${a.getName},${b.getName})")
 
+  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any](){
+    val aa = compiler.compileColumn[ROW](a, schema)
+    val bb = compiler.compileColumn[ROW](b, schema)
+    def apply(obj: ROW) = NumericColumn.+(aa.apply(obj), bb.apply(obj))
+  }
+}
 
+class Minus(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn {
+  def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
+
+  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any](){
+    val aa = compiler.compileColumn[ROW](a, schema)
+    val bb = compiler.compileColumn[ROW](b, schema)
+    def apply(obj: ROW) = NumericColumn.-(aa.apply(obj), bb.apply(obj))
+  }
+}
+
+class Multiply(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn{
+  def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
+
+  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any](){
+    val aa = compiler.compileColumn[ROW](a, schema)
+    val bb = compiler.compileColumn[ROW](b, schema)
+    def apply(obj: ROW) = NumericColumn.*(aa.apply(obj), bb.apply(obj))
+  }
+}
+
+class Divide(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn{
+  def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
+
+  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any](){
+    val aa = compiler.compileColumn[ROW](a, schema)
+    val bb = compiler.compileColumn[ROW](b, schema)
+    def apply(obj: ROW) = NumericColumn./(aa.apply(obj), bb.apply(obj))
+  }
+}
 /********************/
 /* Real data columns*/
 /********************/
