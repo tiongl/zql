@@ -1,7 +1,9 @@
 package zql.list
 
 import zql.core._
+import zql.core.util.Utils
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 /**
@@ -10,55 +12,59 @@ import scala.reflect.ClassTag
 class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends Table(schema) {
 
   class DefaultCompiler(schema: Schema[ROW]) extends Compiler[ListTable[_]]{
+
+    def validate(stmt: Statement) = {
+      if (stmt._groupBy!=null){
+        val aggFunctions = stmt._selects.filter(_.isInstanceOf[AggregateFunction[_]])
+        if (aggFunctions.size==0) {
+          throw new IllegalArgumentException("Group by must have at least one aggregation function")
+        }
+      }
+    }
+
     def compile(stmt: Statement): Executable[ListTable[_]] = {
       import zql.core.ExecutionPlan._
+      validate(stmt)
       val execPlan = plan("Query"){
         first("Filter the data"){
           val filteredData = if (stmt._where!=null){
-            val filterExtractor = compileColumn[ROW](stmt._where)
+            val filterExtractor = compileColumn[ROW](stmt._where, schema)
             data.filter(d => filterExtractor(d).asInstanceOf[Boolean])
           } else data
           filteredData
         }.next("Grouping the data") {
           filteredData =>
-            val selects = stmt._selects.flatMap(compileSelect[ROW](_))
+            val selectMappings = compileSelects(stmt._selects, schema)
+            val newSchema = new RowSchema(selectMappings.keys.toSeq)
+            val selects = selectMappings.values
             //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
             val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
             val groupedProcessData = if (stmt._groupBy!=null){
-              val groupByExtractor = stmt._groupBy.map(compileColumn(_))
-              val groupedList = data.groupBy{
-                d => groupByExtractor
-              }.map(_._2)
-              val groupedData = groupedList.map{
-                list => list.map{
-                  data => new Row(selects.map(_(data)).toArray)
-                }.reduce [Row]{
-                  case (a: Row, b: Row) => a.aggregate(b, groupByIndices)
-                }
-              }
+              val groupByExtractors = stmt._groupBy.map(compileColumn[ROW](_, schema))
+              val groupedData = Utils.groupBy[ROW, Row](filteredData,
+                (row: ROW) => groupByExtractors.map(_(row)),
+                (row: ROW) => new Row(selects.map(_(row)).toArray),
+                (a: Row, b: Row) => a.aggregate(b, groupByIndices)
+              ).map(_.normalize).toList
+
               val havingData = if (stmt._having!=null){
-                val havingExtractor = compileColumn[Row](stmt._having)
+                val havingExtractor = compileColumn[Row](stmt._having, newSchema)
                 groupedData.filter(d => havingExtractor(d).asInstanceOf[Boolean])
               } else {
                 groupedData
               }
               havingData
             } else if (groupByIndices.size>0){//this will trigger group by all
-              val singleRow = data.map(
+              val singleRow = filteredData.map(
                 row => new Row(selects.map(_(row)).toArray)
               ).reduce[Row] {
                 case (a, b) => a.aggregate(b, groupByIndices)
               }
-              val normalized = singleRow.data.map {
-                case s: Summable =>
-                  s.value
-                case any: Any =>
-                  any
-              }
-              List(new Row(normalized))
+
+              List(singleRow.normalize)
             }
             else {
-              data.map{
+              filteredData.map{
                 d =>
                   new Row(selects.map(_(d)).toArray)
               }
@@ -73,21 +79,41 @@ class ListTable[ROW: ClassTag](val data: List[ROW], schema: Schema[ROW]) extends
       execPlan
     }
 
-    def compileSelect[ROW](col: Column): Seq[ColumnAccessor[ROW, _]] = {
-      col match {
-        case ac: AllColumn =>
-          schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW, _]]).toSeq
-        case c: Column =>
-          Seq(compileColumn(col))
+    def compileSelects[ROW](selects: Seq[Column], schema: Schema[ROW]): mutable.LinkedHashMap[Symbol, ColumnAccessor[ROW, _]] = {
+      val columnMappings = selects.flatMap {
+          case ac: AllColumn =>
+            schema.columnAccessors().map {
+              case (name, accessor) => (name, accessor.asInstanceOf[ColumnAccessor[ROW, _]])
+            }
+          case c: Column =>
+            Seq((c.getName, compileColumn[ROW](c, schema)))
       }
+      val results = new mutable.LinkedHashMap[Symbol, ColumnAccessor[ROW, _]]
+      columnMappings.foreach {
+        mapping => results.put(mapping._1, mapping._2)
+      }
+      results
     }
 
-    def compileColumn[ROW](col: Column): ColumnAccessor[ROW, _] = {
+
+//    def compileSelect[ROW](col: Column, schema: Schema[ROW]): Seq[ColumnAccessor[ROW, _]] = {
+//      col match {
+//        case ac: AllColumn =>
+//          schema.columnAccessors.map(_._2.asInstanceOf[ColumnAccessor[ROW, _]]).toSeq
+//        case c: Column =>
+//          Seq(compileColumn(col))
+//      }
+//    }
+
+    def compileColumn[ROW](col: Column, schema: Schema[ROW]): ColumnAccessor[ROW, _] = {
       col match {
         case cc: WithAccessor[_] =>
-          cc.getColumnAccessor[ROW](this)
+          cc.getColumnAccessor[ROW](this, schema)
         case c: NamedColumn[_] =>
-          schema.columnAccessors()(c.name).asInstanceOf[ColumnAccessor[ROW, _]]
+          if (schema.columnAccessors().contains(c.name)) {
+            schema.columnAccessors()(c.name)
+              .asInstanceOf[ColumnAccessor[ROW, _]]
+          } else throw new IllegalArgumentException(s"Invalid column '${c.name}'")
         case _ =>
           throw new IllegalArgumentException("Unknown column type " + col)
       }

@@ -26,13 +26,25 @@ case class Row(val data: Array[Any]){
     //TODO: make sure this won't have side effect as we use shallow copy
     val newRow = new Row(data)
     indices.foreach{i =>
-      val a = data(i).asInstanceOf[Aggregatable]
-      val b = row.data(i).asInstanceOf[Aggregatable]
+      val a = data(i).asInstanceOf[Aggregatable[Any]]
+      val b = row.data(i).asInstanceOf[Aggregatable[Any]]
       newRow.data(i) = a.aggregate(b)
     }
     newRow
   }
 
+  def normalize: Row = {
+    data.zipWithIndex.map {
+      case (value, index) =>
+        value match {
+          case s: Aggregatable[_] =>
+            data(index) = s.value
+          case any: AnyRef =>
+            any
+        }
+    }
+    this
+  }
 
   override def equals(obj: scala.Any): Boolean = obj.asInstanceOf[Row].data.sameElements(data)
 

@@ -2,6 +2,9 @@ package zql.core
 
 import org.scalatest.{Matchers, FlatSpec}
 import zql.core._
+import zql.core.util.Utils
+
+import scala.collection.mutable
 
 class ListTableTest extends FlatSpec with Matchers with PersonExample{
 
@@ -38,9 +41,79 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
     )
   }
 
-//  it should "support simple filtering" in {
-//    executeAndMatch(
-//      table select ('firstName, 'lastName) where ('firstName==="test")
-//    )
-//  }
+  it should "support simple filtering" in {
+    executeAndMatch(
+      table select ('firstName, 'lastName) where ('firstName==="John"),
+      data.filter(_.firstName=="John").map(p => new Row(Array(p.firstName, p.lastName))).toList
+    )
+  }
+
+  it should "support filtering with aggregation" in {
+    executeAndMatch(
+      table select (sum('age)) where ('firstName==="John"),
+      List(new Row(Array(data.filter(_.firstName=="John").map(_.age).sum)))
+    )
+  }
+
+  it should "support and filtering" in {
+    executeAndMatch(
+      table select ('firstName, 'lastName) where ('firstName==="John" and 'lastName==="Smith"),
+      data.filter(p => p.firstName=="John" && p.lastName=="Smith").map(p => new Row(Array(p.firstName, p.lastName))).toList
+    )
+  }
+
+  it should "support or filtering" in {
+    executeAndMatch(
+      table select ('firstName, 'lastName) where ('firstName==="John" or 'lastName==="Smith"),
+      data.filter(p => p.firstName=="John" || p.lastName=="Smith").map(p => new Row(Array(p.firstName, p.lastName))).toList
+    )
+  }
+
+  it should "support not filtering" in {
+    executeAndMatch(
+      table select ('firstName, 'lastName) where (NOT('firstName==="John")),
+      data.filter(p => p.firstName!="John").map(p => new Row(Array(p.firstName, p.lastName))).toList
+    )
+  }
+
+  it should "validate groupby must have aggregate function" in {
+    try {
+      val stmt = table select('firstName, 'lastName) groupBy ('firstName)
+      stmt.compile
+      throw new Exception("Groupby without aggregate function must fail")
+    } catch {
+      case e: IllegalArgumentException =>
+        e.getMessage should be ("Group by must have at least one aggregation function")
+      case _ =>
+        throw new Exception("Groupby without aggregate function must fail")
+
+    }
+  }
+
+  it should "support simple groupby function" in {
+    executeAndMatch(
+      table select('firstName, sum('age)) groupBy ('firstName), {
+        val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
+        Utils.groupBy[Person, Row](data,
+          _.firstName,
+          p => new Row(Array(p.firstName, new Summable(p.age))),
+          (a: Row, b: Row) => a.aggregate(b, Array(1))
+        )
+      }.map(_.normalize).toList
+    )
+  }
+
+  it should "support groupby having " in {
+    executeAndMatch(
+      table select('firstName, sum('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
+        val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
+        Utils.groupBy[Person, Row](data,
+          _.firstName,
+          p => new Row(Array(p.firstName, new Summable(p.age))),
+          (a: Row, b: Row) => a.aggregate(b, Array(1))
+        )
+      }.map(_.normalize).filter(_.data(1).asInstanceOf[Int]>10).toList
+    )
+  }
+
 }

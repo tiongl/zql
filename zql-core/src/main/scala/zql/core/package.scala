@@ -5,32 +5,32 @@ package zql
   */
 package object core {
 
-  implicit def genericNamedColumn(symbol: Symbol): GenericNamedColumn = {
-    new GenericNamedColumn(symbol)
+  implicit def untypedColumn(symbol: Symbol): UntypedColumn = {
+    new UntypedColumn(symbol)
   }
 
   implicit def stringLiteralColumn(string: String): StringLiteralColumn = new StringLiteralColumn(string)
 
-  implicit def numericColumn(number: Number): NumericLiteralColumn = new NumericLiteralColumn(number)
+  implicit def intLiteral(number: Int): IntLiteral = new IntLiteral(number)
 
-  implicit def intColumn(number: Int): NumericLiteralColumn = new NumericLiteralColumn(number)
+  implicit def floatLiteral(number: Float): FloatLiteral = new FloatLiteral(number)
 
-  implicit def floatColumn(number: Float): NumericLiteralColumn = new NumericLiteralColumn(number)
+  implicit def longLiteral(number: Long): LongLiteral = new LongLiteral(number)
 
-  implicit def longColumn(number: Long): NumericLiteralColumn = new NumericLiteralColumn(number)
-
-  implicit def doubleColumn(number: Double): NumericLiteralColumn = new NumericLiteralColumn(number)
+  implicit def doubleLiteral(number: Double): DoubleLiteral = new DoubleLiteral(number)
 
   implicit def booleanColumn(bool: Boolean): BooleanLiteralColumn = new BooleanLiteralColumn(bool)
 
-  def sum(col: GenericNamedColumn): Sum = sum(new NumericNamedColumn(col.name)) //upgrade to numeric column
+  implicit def toNumeric(col: UntypedColumn): NumericColumn = new NumericNamedColumn(col.name)
 
-  def sum(col: NumericNamedColumn): Sum = new Sum(col)
+  def sum(col: UntypedColumn): Sum = sum(new NumericNamedColumn(col.name)) //upgrade to numeric column
+
+  def sum(col: NumericColumn): Sum = new Sum(col)
 
   //use capitalized due to conflict with not
-  def NOT(col: GenericNamedColumn): NotCondition = NOT(new BoolNamedColumn(col.name))
+  def NOT(col: UntypedColumn): NotCondition = NOT(new BooleanColumn(col.name))
 
-  def NOT(col: BoolNamedColumn): NotCondition = new NotCondition(col)
+  def NOT(col: BooleanColumn): NotCondition = new NotCondition(col)
 
   def NOT(col: Condition): NotCondition = new NotCondition(col)
 
