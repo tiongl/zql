@@ -6,7 +6,9 @@ import scala.reflect.ClassTag
 import scala.Boolean
 
 /** allow accessing a column from type T **/
-abstract class ColumnAccessor[ROW, +T]() extends((ROW) => T)
+abstract class ColumnAccessor[ROW, +T]() extends((ROW) => T){
+  def getType: Class[_] = classOf[Any]
+}
 
 /** a generic column **/
 abstract class Column {
@@ -44,13 +46,13 @@ abstract class Column {
 
   def /(other: Column): NumericColumn = new Divide(castToNumeric, other.castToNumeric)
 
-
-
   def requiredColumns: Set[Symbol]
 }
 
-/** column with a type **/
-abstract class TypedColumn[T] extends Column
+/** column with known type **/
+abstract class TypedColumn[T: ClassTag] extends Column {
+  val getType = scala.reflect.classTag[T].runtimeClass
+}
 
 /** just a tagging interface for numeric column **/
 trait NumericColumn extends Column
@@ -82,7 +84,7 @@ trait WithAccessor[T] extends Column {
   def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]): ColumnAccessor[ROW, T]
 }
 
-abstract class CompositeColumn[T](val cols: Column*) extends TypedColumn[T] with WithAccessor[T] {
+abstract class CompositeColumn[T: ClassTag](val cols: Column*) extends TypedColumn[T] with WithAccessor[T] {
   lazy val requiredColumns = cols.map(_.requiredColumns).reduce(_ ++ _)
 }
 
@@ -238,12 +240,12 @@ class Divide(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a
 /* Real data columns*/
 /********************/
 /* named column */
-abstract class NamedColumn[T](val name: Symbol) extends TypedColumn[T] with OrderSpec {
+abstract class NamedColumn[T: ClassTag](val name: Symbol) extends TypedColumn[T] with OrderSpec {
   def requiredColumns = Set(name)
 }
 
 
-class NumericNamedColumn[T](n: Symbol) extends NamedColumn[T](n) with NumericColumn {
+class NumericNamedColumn[T: ClassTag](n: Symbol) extends NamedColumn[T](n) with NumericColumn {
   override def castToNumeric = { this }
 }
 
@@ -266,7 +268,7 @@ class UntypedColumn(n: Symbol) extends NamedColumn[Any](n) {
 /*******************/
 /* Literal columns */
 /*******************/
-abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] with WithAccessor[T] {
+abstract case class LiteralColumn[T: ClassTag](val value: T) extends TypedColumn[T] with WithAccessor[T] {
   def name = Symbol(value.toString)
 
   def requiredColumns = Set()
@@ -276,7 +278,7 @@ abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] with W
   }
 }
 
-abstract class NumericLiteral[T](value: T) extends LiteralColumn[T](value) with NumericColumn {
+abstract class NumericLiteral[T: ClassTag](value: T) extends LiteralColumn[T](value) with NumericColumn {
   override def castToNumeric = { this }
 }
 
@@ -311,9 +313,9 @@ class AllColumn extends MultiColumn {
 /* Function columns */
 /********************/
 
-abstract class Function[T](cols: Column*) extends CompositeColumn[T](cols: _*)
+abstract class Function[T: ClassTag](cols: Column*) extends CompositeColumn[T](cols: _*)
 
-abstract class AggregateFunction[T](cols: Column*) extends Function[T](cols: _*)
+abstract class AggregateFunction[T: ClassTag](cols: Column*) extends Function[T](cols: _*)
 
 
 abstract class Aggregatable[T <: Any] {
@@ -321,20 +323,46 @@ abstract class Aggregatable[T <: Any] {
   def value: T
 }
 
-class Summable(val value: Number) extends Aggregatable[Number] {
-  override def aggregate(agg: Aggregatable[Number]) = {
-    new Summable(value.intValue() + agg.asInstanceOf[Summable].value.intValue)
-  }
-
+abstract class Summable[T](val value: T) extends Aggregatable[T] {
   override def toString = value.toString
 }
 
-class Sum(val col: NumericColumn) extends AggregateFunction[Summable](col) with WithAccessor[Summable] {
+class IntSummable(value: Int) extends Summable[Int](value) {
+  override def aggregate(agg: Aggregatable[Int]) = new IntSummable(value + agg.value)
+}
+
+class LongSummable(value: Long) extends Summable[Long](value) {
+  override def aggregate(agg: Aggregatable[Long]) = new LongSummable(value + agg.value)
+}
+
+class FloatSummable(value: Float) extends Summable[Float](value) {
+  override def aggregate(agg: Aggregatable[Float]) = new FloatSummable(value + agg.value)
+}
+
+class DoubleSummable(value: Double) extends Summable[Double](value) {
+  override def aggregate(agg: Aggregatable[Double]) = new DoubleSummable(value + agg.value)
+}
+
+class Sum(val col: NumericColumn) extends AggregateFunction[Summable[_]](col) with WithAccessor[Summable[_]] {
   def name = Symbol(s"SUM(${col.getName})")
 
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]) = new ColumnAccessor[ROW, Summable](){
-    val colAccessor = compiler.compileColumn[ROW](col, schema).asInstanceOf[ColumnAccessor[ROW, Number]]
-    def apply(obj: ROW) = new Summable(colAccessor.apply(obj).asInstanceOf[Int])
+  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]): ColumnAccessor[ROW, Summable[_]] = new ColumnAccessor[ROW, Summable[_]](){
+    val colAccessor = compiler.compileColumn[ROW](col, schema)
+    override def apply(obj: ROW): Summable[_] = {
+      val columnType = colAccessor.getType
+      new IntSummable(colAccessor.apply(obj).asInstanceOf[Int] )
+//      if (columnType.equals(classOf[Int])){
+//        new IntSummable(colAccessor.apply(obj).asInstanceOf[Int] )
+//      } else if (columnType.equals(classOf[Long])){
+//        new LongSummable(colAccessor.apply(obj).asInstanceOf[Long])
+//      } else if (columnType.equals(classOf[Float])){
+//        new FloatSummable(colAccessor.apply(obj).asInstanceOf[Float] )
+//      }else if (columnType.equals(classOf[Double])){
+//        new DoubleSummable(colAccessor.apply(obj).asInstanceOf[Double] )
+//      } else {
+//        throw new IllegalArgumentException("Unknown column type for sum")
+//      }
+    }
   }
 }
 

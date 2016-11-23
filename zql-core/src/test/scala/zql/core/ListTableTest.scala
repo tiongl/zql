@@ -103,7 +103,7 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](data,
           _.firstName,
-          p => new Row(Array(p.firstName, new Summable(p.age))),
+          p => new Row(Array(p.firstName, new IntSummable(p.age))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
         )
       }.map(_.normalize).toList
@@ -116,7 +116,7 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](data,
           _.firstName,
-          p => new Row(Array(p.firstName, new Summable(p.age))),
+          p => new Row(Array(p.firstName, new IntSummable(p.age))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
         )
       }.map(_.normalize).filter(_.data(1).asInstanceOf[Int]>10).toList
