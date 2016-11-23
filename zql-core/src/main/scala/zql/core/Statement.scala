@@ -26,11 +26,12 @@ trait StatementWrapper extends Compilable {
 class StatementEnd(val statement: Statement) extends StatementWrapper
 
 trait Limitable extends StatementWrapper{
-  def limit(offset: Int, limit: Int) = new StatementEnd(statement.limit((offset, limit)))
+  def limit(count: Int): StatementEnd = limit(0, count)
+  def limit(offset: Int, count: Int): StatementEnd = new StatementEnd(statement.limit((offset, count)))
 }
 
 trait Orderable extends Limitable {
-  def orderBy(columns: Column*) = statement.orderBy(columns)
+  def orderBy(columns: OrderSpec*) = statement.orderBy(columns)
 }
 
 class Ordered(val statement: Statement) extends Limitable
@@ -68,7 +69,7 @@ case class Statement(val _from: Table = null,
                      val _selects: Seq[Column] = null,
                      val _where: Condition = null,
                      val _groupBy: Seq[Column] = null,
-                     val _orderBy: Seq[Column] = null,
+                     val _orderBy: Seq[OrderSpec] = null,
                      val _limit: (Int, Int) = null,
                      val _having: Condition = null) //having
                     extends Compilable
@@ -85,7 +86,7 @@ case class Statement(val _from: Table = null,
   def groupBy(groupBy: Seq[Column]) =
     new Statement(_from, _selects, _where, groupBy, _orderBy, _limit, _having)
 
-  def orderBy(orderBy: Seq[Column]) =
+  def orderBy(orderBy: Seq[OrderSpec]) =
     new Statement(_from, _selects, _where, _groupBy, orderBy, _limit, _having)
 
   def limit(limit: (Int, Int)) =

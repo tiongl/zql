@@ -123,4 +123,55 @@ class ListTableTest extends FlatSpec with Matchers with PersonExample{
     )
   }
 
+  it should "support select ordering" in {
+    executeAndMatch(
+      table select(*) orderBy ('firstName),
+      data.sortBy(_.firstName).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
+      )
+    )
+  }
+
+  it should "support select ordering desc" in {
+    executeAndMatch(
+      table select(*) orderBy ('firstName desc),
+      data.sortBy(_.firstName)(Ordering.String.reverse).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
+      )
+    )
+  }
+
+  it should "support limit" in {
+    executeAndMatch(
+      table select(*) limit (1, 3),
+      data.slice(1, 4).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
+      )
+    )
+  }
+
+  /**************/
+  /** UDF test **/
+  /**************/
+  it should "support select count" in {
+    executeAndMatch(
+      table select(count('*) as 'myCount),
+      List(new Row(Array(table.data.length)))
+    )
+  }
+
+  it should "support select count with groupby" in {
+    executeAndMatch(
+      table select('firstName, count('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
+        val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
+        Utils.groupBy[Person, Row](data,
+          _.firstName,
+          p => new Row(Array(p.firstName, new Countable(1))),
+          (a: Row, b: Row) => a.aggregate(b, Array(1))
+        )
+      }.map(_.normalize).filter(_.data(1).asInstanceOf[Int]>10).toList
+    )
+  }
+
+
 }

@@ -1,5 +1,7 @@
 package zql
 
+import zql.core.util.Utils
+
 /**
   * Created by tiong on 7/4/16.
   */
@@ -36,5 +38,9 @@ package object core {
 
 
   def *(): Column = new AllColumn()
+
+  def count(col: NamedColumn[_]) = new Count(col)
+
+
 
 }
