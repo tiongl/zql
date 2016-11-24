@@ -6,7 +6,7 @@ import scala.reflect.ClassTag
 import scala.Boolean
 
 /** allow accessing a column from type T **/
-abstract class ColumnAccessor[ROW, +T]() extends((ROW) => T)
+abstract case class ColumnAccessor[ROW, +T]() extends((ROW) => T)
 
 /** a generic column **/
 abstract class Column {
@@ -55,7 +55,7 @@ abstract class TypedColumn[T] extends Column
 /** just a tagging interface for numeric column **/
 trait NumericColumn extends Column
 
-//TODO: Improve the implementations
+//TODO: Improve the implementations of math operations
 object NumericColumn {
 
   def +(a: Any, b: Any): Any = {
@@ -206,7 +206,7 @@ class Plus(val a: Column, val b: Column) extends Function[Any](a, b) {
 }
 
 class Minus(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn {
-  def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
+  def name = Symbol(s"Minus(${a.getName},${b.getName})")
 
   override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]) = new ColumnAccessor[ROW, Any](){
     val aa = compiler.compileColumn[ROW](a, schema)
@@ -216,7 +216,7 @@ class Minus(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a,
 }
 
 class Multiply(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn{
-  def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
+  def name = Symbol(s"Multiply(${a.getName},${b.getName})")
 
   override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]) = new ColumnAccessor[ROW, Any](){
     val aa = compiler.compileColumn[ROW](a, schema)
@@ -226,7 +226,7 @@ class Multiply(val a: NumericColumn, val b: NumericColumn) extends Function[Any]
 }
 
 class Divide(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn{
-  def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
+  def name = Symbol(s"Divide(${a.getName},${b.getName})")
 
   override def getColumnAccessor[ROW](compiler: Compiler[_], schema: Schema[ROW]) = new ColumnAccessor[ROW, Any](){
     val aa = compiler.compileColumn[ROW](a, schema)
@@ -321,7 +321,7 @@ abstract class Aggregatable[T <: Any] {
   def value: T
 }
 
-class Summable(val value: Number) extends Aggregatable[Number] {
+case class Summable(val value: Number) extends Aggregatable[Number] {
   override def aggregate(agg: Aggregatable[Number]) = {
     new Summable(value.intValue() + agg.asInstanceOf[Summable].value.intValue)
   }
@@ -338,7 +338,7 @@ class Sum(val col: NumericColumn) extends AggregateFunction[Summable](col) with 
   }
 }
 
-class Countable(val value: Number) extends Aggregatable[Number] {
+case class Countable(val value: Number) extends Aggregatable[Number] {
   override def aggregate(agg: Aggregatable[Number]) = {
     new Countable(value.intValue() + agg.asInstanceOf[Countable].value.intValue)
   }

@@ -19,7 +19,9 @@ abstract class Table(val schema: Schema[_]) {
 
 
 
-
+class EmptyRow(array: Array[Any]) extends Row(array){
+  override def aggregate(row: Row, indices: Array[Int]): Row = row
+}
 
 case class Row(val data: Array[Any]){
   def aggregate(row: Row, indices: Array[Int]): Row = {

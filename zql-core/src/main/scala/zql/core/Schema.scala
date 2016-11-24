@@ -4,7 +4,7 @@ abstract class Schema[ROW] {
   def columnAccessors(): Map[Symbol, ColumnAccessor[ROW, Any]]
 }
 
-class RowSchema(val columns: Seq[Symbol]) extends Schema[Row] {
+case class RowSchema(val columns: Seq[Symbol]) extends Schema[Row] {
   class RowAccessor(i: Int) extends ColumnAccessor[Row, Any]() {
     def apply(obj: Row) = obj.data(i)
   }
