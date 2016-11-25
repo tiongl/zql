@@ -9,7 +9,9 @@ import scala.reflect.ClassTag
   */
 
 
-abstract class Table(val schema: Schema[_]) {
+abstract class Table {
+  def schema: Schema
+
   def select(selects: Column*): Selected = new Selected(selects, this)
 
   def compile(stmt: Statement): Executable[Table]
@@ -17,9 +19,13 @@ abstract class Table(val schema: Schema[_]) {
   def collectAsList(): List[Any]
 }
 
+abstract class TypedTable[T](val schema: TypedSchema[T]) extends Table
 
 
 
+class EmptyRow(array: Array[Any]) extends Row(array){
+  override def aggregate(row: Row, indices: Array[Int]): Row = row
+}
 
 case class Row(val data: Array[Any]){
   def aggregate(row: Row, indices: Array[Int]): Row = {

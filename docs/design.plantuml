@@ -1,0 +1,31 @@
+@startuml
+
+rectangle  {
+ rectangle "ZQL DSL" as dsl
+ rectangle "ZQL\n List Runtime" as listruntime
+ rectangle "ZQL\n RDBMS Runtime" as dbruntime
+ rectangle "ZQL\n Spark Runtime" as sparkruntime
+ rectangle "ZQL\n Storm Runtime" as stormruntime
+ rectangle "More Runtimes..." as heronruntime
+
+ dsl --> listruntime
+ dsl --> dbruntime
+ dsl --> sparkruntime
+ dsl --> stormruntime
+ dsl --> heronruntime
+}
+
+listruntime --> inmemory
+dbruntime -down-> mysql
+sparkruntime -down-> spark
+stormruntime -down-> storm
+
+rectangle "In-memory data" as inmemory {
+}
+database "MySQL" as mysql {
+}
+rectangle "Spark Job" as spark {
+}
+rectangle "Storm Pipeline" as storm {
+}
+@enduml
