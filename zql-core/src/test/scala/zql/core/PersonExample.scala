@@ -1,6 +1,5 @@
 package zql.core
 
-import zql.list.{ReflectedSchema, ListTable}
 case class Person(id: Int, val firstName: String, val lastName: String, age: Int, spouseId: Int) {
   override def toString() = "Person(%s, %s, %d)".format(firstName, lastName, age)
 

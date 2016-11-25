@@ -2,7 +2,6 @@ package zql.core
 
 import org.scalatest.{FlatSpec, Matchers}
 import zql.core.util.Utils
-import zql.list.{ListTable, ReflectedSchema}
 
 import scala.collection.mutable
 

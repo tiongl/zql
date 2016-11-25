@@ -1,11 +1,11 @@
 package zql.core
 
 import org.scalatest._
-import zql.list.{ReflectedSchema, ListTable}
+import zql.list.ListTable
 
 class DslTest extends FlatSpec with Matchers with PersonExample{
 
-  val schema = new ReflectedSchema[Person](Set('id, 'firstName, 'lastName, 'age))
+  val schema = new ReflectedSchema[Person](Seq('id, 'firstName, 'lastName, 'age))
 
   val table = new ListTable[Person](data, schema)
 
