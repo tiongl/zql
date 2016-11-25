@@ -1,6 +1,6 @@
 package zql.example
 
-import zql.list.{ListTable, ReflectedSchema}
+import zql.list.ListTable
 import zql.core._
 
 object ListTableExample {
@@ -9,7 +9,7 @@ object ListTableExample {
     case class Person(id: Int, val firstName: String, val lastName: String, age: Int, spouseId: Int)
 
     //the schema
-    val schema = new ReflectedSchema[Person](Set('id, 'firstName, 'lastName, 'age))
+    val schema = new ReflectedSchema[Person](Seq('id, 'firstName, 'lastName, 'age))
 
     //the data
     val data = Seq(//

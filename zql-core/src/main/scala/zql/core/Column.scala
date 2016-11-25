@@ -263,6 +263,16 @@ class UntypedColumn(n: Symbol) extends NamedColumn[Any](n) {
   override def castToNumeric: NumericColumn = new NumericNamedColumn(n)
 }
 
+class FuncColumn[R_TYPE](func: (R_TYPE) => Any) extends TypedColumn[Any] with WithAccessor[Any]{
+  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any] {
+    def apply(obj: ROW): Any = func(obj.asInstanceOf[R_TYPE])
+  }
+
+  override def requiredColumns: Set[Symbol] = Set(name)
+
+  override def name: Symbol = Symbol(func.toString())
+}
+
 /*******************/
 /* Literal columns */
 /*******************/
@@ -302,7 +312,7 @@ class AllColumn extends MultiColumn {
 
   def toColumns(schema: TypedSchema[_]) = {
     //TODO: make compilation to use MultiColumn interface
-    schema.columnAccessors().keys.map(new UntypedColumn(_)).toSeq
+    schema.allColumns().map(new UntypedColumn(_)).toSeq
   }
 }
 

@@ -111,9 +111,8 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
     def compileSelects[ROW](selects: Seq[Column], schema: TypedSchema[ROW]): Seq[(Symbol, ColumnAccessor[ROW, _])] = {
       selects.flatMap {
         case ac: MultiColumn =>
-          schema.columnAccessors().map {
-            case (name, accessor) => (name, accessor.asInstanceOf[ColumnAccessor[ROW, _]])
-          }
+          ac.toColumns(schema).map(col =>
+            (col.name, compileColumn[ROW](col, schema)))
         case c: Column =>
           Seq((c.getName, compileColumn[ROW](c, schema)))
       }
@@ -130,10 +129,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
         case cc: WithAccessor[_] =>
           cc.getColumnAccessor[ROW](this, schema)
         case c: NamedColumn[_] =>
-          if (schema.columnAccessors().contains(c.name)) {
-            schema.columnAccessors()(c.name)
-              .asInstanceOf[ColumnAccessor[ROW, _]]
-          } else throw new IllegalArgumentException(s"Invalid column '${c.name}'")
+          schema.getColumnAccessor(c.name)
         case _ =>
           throw new IllegalArgumentException("Unknown column type " + col)
       }
