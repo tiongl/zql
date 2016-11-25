@@ -12,8 +12,11 @@ lazy val root =
 
 lazy val core = project.in( file("zql-core") ) settings (
     libraryDependencies += "org.scalactic" %% "scalactic" % "3.0.0",
-    libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test"
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test",
+    libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test"
   )
 
-lazy val spark = project in file("zql-spark") dependsOn( core )
+lazy val spark = project in file("zql-spark") dependsOn( core ) settings (
+    libraryDependencies += "org.apache.spark" %% "spark-core" % "2.0.0" % "provided"
+  )
 
