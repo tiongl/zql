@@ -8,7 +8,10 @@ import zql.list.ListTable
 import scala.reflect.ClassTag
 
 class RDDData[T](val rdd: RDD[T]) extends RowBased[T]{
-  override def slice(offset: Int, until: Int): RowBased[T] = ???
+  override def slice(offset: Int, untilN: Int): RowBased[T] = {
+    val newRdd = rdd.zipWithIndex().filter(t => t._2 >= offset && t._2 < untilN).map[Row](_._1.asInstanceOf[Row])
+    new RDDData(newRdd).asInstanceOf[RDDData[T]]
+  }
 
   override def reduce(reduceFunc: (T, T) => T): RowBased[T] = {
     val reduce = rdd.reduce(reduceFunc)
@@ -32,6 +35,8 @@ class RDDData[T](val rdd: RDD[T]) extends RowBased[T]{
   override def asList: List[T] = rdd.collect().toList
 
   override def map(mapFunc: (T) => Row): RowBased[Row] = new RDDData(rdd.map(mapFunc))
+
+  def isLazy = true
 }
 
 class RDDTable[ROW](rdd: RDD[ROW], schema: TypedSchema[ROW]) extends RowBasedTable(schema) {

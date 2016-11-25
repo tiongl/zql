@@ -14,6 +14,8 @@ trait RowBased[ROW] {
   def sortBy[K](keyFunc: (ROW) => K, ordering: Ordering[K], tag: ClassTag[K]): RowBased[ROW]
   def size: Int
   def asList: List[ROW]
+  def isLazy: Boolean
+
 }
 
 abstract class RowBasedTable[T](schema: TypedSchema[T]) extends TypedTable[T](schema){
@@ -94,11 +96,15 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
           orderedData => if (stmt._limit!=null) {
             val (offset, count) = stmt._limit
             //NOTE: we skip the following because for spark we can't know the size without trigger computation
-            if (offset>=orderedData.size){
-              throw new IllegalArgumentException("Offset is more than data length")
+            if (!orderedData.isLazy){
+              if (offset>=orderedData.size){
+                throw new IllegalArgumentException("Offset is more than data length")
+              }
+              val until = Math.min(orderedData.size, offset + count)
+              orderedData.slice(offset, until)
+            } else {
+              orderedData.slice(offset, offset + count)
             }
-            val until = Math.min(orderedData.size, offset + count)
-            orderedData.slice(offset, until)
           } else orderedData
         }.next("Return the table") {
           groupedProcessData =>

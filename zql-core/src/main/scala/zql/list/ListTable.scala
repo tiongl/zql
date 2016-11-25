@@ -51,4 +51,6 @@ class ListData[ROW](val list: List[ROW]) extends RowBased[ROW] {
   def size() = list.length
 
   def asList = list
+
+  def isLazy = false
 }
