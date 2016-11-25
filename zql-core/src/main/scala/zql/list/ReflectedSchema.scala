@@ -8,7 +8,7 @@ import zql.core._
 import scala.reflect.ClassTag
 import scala.util.Try
 
-class ReflectedSchema[ROW: ClassTag](columnNames: Set[Symbol]) extends Schema[ROW]{
+class ReflectedSchema[ROW: ClassTag](columnNames: Set[Symbol]) extends TypedSchema[ROW]{
   val ctag = scala.reflect.classTag[ROW].runtimeClass
 
   val columnAccessors = columnNames.map{
