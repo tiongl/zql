@@ -16,7 +16,7 @@ lazy val core = project.in( file("zql-core") ) settings (
     libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % "test"
   )
 
-lazy val spark = project in file("zql-spark") dependsOn( core ) settings (
+lazy val spark = project in file("zql-spark") dependsOn( core % "compile->compile;test->test") settings (
     libraryDependencies += "org.apache.spark" %% "spark-core" % "2.0.0" % "provided"
   )
 
