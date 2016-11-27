@@ -5,11 +5,9 @@ import zql.core.util.Utils
 import scala.reflect.ClassTag
 import scala.Boolean
 
-/** allow accessing a column from type T **/
-abstract case class ColumnAccessor[ROW, +T]() extends((ROW) => T)
 
 /** a generic column **/
-abstract class Column {
+abstract class Column extends Serializable {
 
   var alias: Symbol = null
 
@@ -44,8 +42,6 @@ abstract class Column {
 
   def /(other: Column): NumericColumn = new Divide(castToNumeric, other.castToNumeric)
 
-
-
   def requiredColumns: Set[Symbol]
 }
 
@@ -78,11 +74,7 @@ object NumericColumn {
   }
 }
 
-trait WithAccessor[T] extends Column {
-  def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]): ColumnAccessor[ROW, T]
-}
-
-abstract class CompositeColumn[T](val cols: Column*) extends TypedColumn[T] with WithAccessor[T] {
+abstract class CompositeColumn[T](val cols: Column*) extends TypedColumn[T] {
   lazy val requiredColumns = cols.map(_.requiredColumns).reduce(_ ++ _)
 }
 
@@ -102,138 +94,88 @@ trait OrderSpec extends Column{
 abstract class Condition(cols: Column*) extends CompositeColumn[Boolean](cols: _*) {
   def and(other: Condition): Condition = new AndCondition(this, other)
   def or(other: Condition): Condition = new OrCondition(this, other)
+  override def castToNumeric: NumericColumn = throw new IllegalArgumentException(s"Condition ${this} cannot be numeric")
+}
+
+abstract class BinaryCondition(val a: Condition, val b: Condition) extends Condition(a, b){
+  def evaluate(a: Boolean, b: Boolean): Boolean
 }
 
 /** a composite condition **/
-class AndCondition(val a: TypedColumn[Boolean], val b: TypedColumn[Boolean]) extends Condition(a, b) {
+class AndCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
   def name = Symbol(s"AND(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema).asInstanceOf[ColumnAccessor[ROW, Boolean]]
-    val bb = compiler.compileColumn[ROW](b, schema).asInstanceOf[ColumnAccessor[ROW, Boolean]]
-    def apply(obj: ROW) = aa.apply(obj) && bb.apply(obj)
-  }
+  def evaluate(a: Boolean, b: Boolean) = a && b
 }
 
-class OrCondition(val a: TypedColumn[Boolean], val b: TypedColumn[Boolean]) extends Condition(a, b) {
+class OrCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
   def name = Symbol(s"OR(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema).asInstanceOf[ColumnAccessor[ROW, Boolean]]
-    val bb = compiler.compileColumn[ROW](b, schema).asInstanceOf[ColumnAccessor[ROW, Boolean]]
-    def apply(obj: ROW) = aa.apply(obj) || bb.apply(obj)
-  }
+  def evaluate(a: Boolean, b: Boolean) = a || b
 }
 
 class NotCondition(val a: TypedColumn[Boolean]) extends Condition(a){
   def name = Symbol(s"Not(${a.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema).asInstanceOf[ColumnAccessor[ROW, Boolean]]
-    def apply(obj: ROW) = !aa.apply(obj)
-  }
+  def evaluate(a: Boolean) = !a
 }
 
-class Equals(val a: Column, val b: Column) extends Condition(a, b){
+abstract class EqualityCondition(val a: Column, val b: Column) extends Condition(a, b){
+  def evaluate(a: Any, b: Any): Boolean
+}
+
+class Equals(a: Column, b: Column) extends EqualityCondition(a, b) {
   def name = Symbol(s"Eq(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = aa.apply(obj).equals(bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = a == b
 }
 
-class NotEquals(val a: Column, val b: Column) extends Condition(a, b){
+class NotEquals(a: Column, b: Column) extends EqualityCondition(a, b){
   def name = Symbol(s"NotEq(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = aa.apply(obj) != bb.apply(obj)
-  }
+  def evaluate(a: Any, b: Any) = a != b
 }
 
-class LessThan(val a: NumericColumn, val b: NumericColumn) extends Condition(a, b){
+class LessThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
   def name = Symbol(s"LessThan(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = Utils.<(aa.apply(obj), (bb.apply(obj)))
-  }
+  def evaluate(a: Any, b: Any) = Utils.<(a, b)
 }
 
-class LessThanEquals(val a: NumericColumn, val b: NumericColumn) extends Condition(a, b){
+class LessThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
   def name = Symbol(s"LessThanEquals(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = Utils.<=(aa.apply(obj), bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = Utils.<=(a, b)
 }
 
 
-class GreaterThan(val a: NumericColumn, val b: NumericColumn) extends Condition(a, b){
+class GreaterThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
   def name = Symbol(s"GreaterThan(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = Utils.>(aa.apply(obj), bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = Utils.>(a, b)
 }
 
-class GreaterThanEquals(val a: NumericColumn, val b: NumericColumn) extends Condition(a, b){
+class GreaterThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
   def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Boolean](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = Utils.>=(aa.apply(obj), bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = Utils.>=(a, b)
 }
 
-class Plus(val a: Column, val b: Column) extends Function[Any](a, b) {
+abstract class BinaryFunction[T](val a: Column, val b: Column) extends Function[T](a, b){
+  def evaluate(a: Any, b: Any): T
+}
+
+class Plus(a: Column, b: Column) extends BinaryFunction[Any](a, b) {
   def name = Symbol(s"Plus(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Any](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = NumericColumn.+(aa.apply(obj), bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = NumericColumn.+(a, b)
 }
 
-class Minus(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn {
+class Minus(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
   def name = Symbol(s"Minus(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Any](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = NumericColumn.-(aa.apply(obj), bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = NumericColumn.-(a, b)
 }
 
-class Multiply(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn{
+class Multiply(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn{
   def name = Symbol(s"Multiply(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Any](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = NumericColumn.*(aa.apply(obj), bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = NumericColumn.*(a, b)
 }
 
-class Divide(val a: NumericColumn, val b: NumericColumn) extends Function[Any](a, b) with NumericColumn{
+class Divide(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn{
   def name = Symbol(s"Divide(${a.getName},${b.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Any](){
-    val aa = compiler.compileColumn[ROW](a, schema)
-    val bb = compiler.compileColumn[ROW](b, schema)
-    def apply(obj: ROW) = NumericColumn./(aa.apply(obj), bb.apply(obj))
-  }
+  def evaluate(a: Any, b: Any) = NumericColumn./(a, b)
 }
+
 /********************/
 /* Real data columns*/
 /********************/
@@ -263,27 +205,22 @@ class UntypedColumn(n: Symbol) extends NamedColumn[Any](n) {
   override def castToNumeric: NumericColumn = new NumericNamedColumn(n)
 }
 
-class FuncColumn[R_TYPE](func: (R_TYPE) => Any) extends TypedColumn[Any] with WithAccessor[Any]{
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any] {
-    def apply(obj: ROW): Any = func(obj.asInstanceOf[R_TYPE])
-  }
-
-  override def requiredColumns: Set[Symbol] = Set(name)
-
-  override def name: Symbol = Symbol(func.toString())
-}
+//class FuncColumn[R_TYPE](func: (R_TYPE) => Any) extends TypedColumn[Any] with WithAccessor[Any]{
+//  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any] {
+//    def apply(obj: ROW): Any = func(obj.asInstanceOf[R_TYPE])
+//  }
+//
+//  override def requiredColumns: Set[Symbol] = Set(name)
+//
+//  override def name: Symbol = Symbol(func.toString())
+//}
 
 /*******************/
 /* Literal columns */
 /*******************/
-abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] with WithAccessor[T] {
+abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] {
   def name = Symbol(value.toString)
-
   def requiredColumns = Set()
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, T](){
-    override def apply(v1: ROW): T = value
-  }
 }
 
 abstract class NumericLiteral[T](value: T) extends LiteralColumn[T](value) with NumericColumn {
@@ -323,7 +260,9 @@ class AllColumn extends MultiColumn {
 
 abstract class Function[T](cols: Column*) extends CompositeColumn[T](cols: _*)
 
-abstract class AggregateFunction[T](cols: Column*) extends Function[T](cols: _*)
+abstract class AggregateFunction[T](cols: Column*) extends Function[T](cols: _*) {
+  def createAggregatable(v1: Seq[Any]): Aggregatable[T]
+}
 
 
 abstract class Aggregatable[T <: Any] {
@@ -339,13 +278,9 @@ case class Summable(val value: Number) extends Aggregatable[Number] {
   override def toString = value.toString
 }
 
-class Sum(val col: NumericColumn) extends AggregateFunction[Summable](col) with WithAccessor[Summable] {
+class Sum(val col: NumericColumn) extends AggregateFunction[Number](col) {
   def name = Symbol(s"SUM(${col.getName})")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Summable](){
-    val colAccessor = compiler.compileColumn[ROW](col, schema).asInstanceOf[ColumnAccessor[ROW, Number]]
-    def apply(obj: ROW) = new Summable(colAccessor.apply(obj).asInstanceOf[Int])
-  }
+  def createAggregatable(v1: Seq[Any]) = new Summable(v1(0).asInstanceOf[Int])
 }
 
 case class Countable(val value: Number) extends Aggregatable[Number] {
@@ -356,10 +291,7 @@ case class Countable(val value: Number) extends Aggregatable[Number] {
   override def toString = value.toString
 }
 
-class Count(val col: Column) extends AggregateFunction[Countable](col) with WithAccessor[Countable] {
+class Count(val col: Column) extends AggregateFunction[Number](col) {
   def name = Symbol(s"COUNT(${col.getName}")
-
-  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]) = new ColumnAccessor[ROW, Countable](){
-    def apply(obj: ROW) = new Countable(1)
-  }
+  def createAggregatable(v1: Seq[Any]) = new Countable(1)
 }

@@ -1,10 +1,10 @@
-import sbt.Keys._
-
 name := "zql"
 
-version := "1.0"
+version := "1.0.0-alpha1"
 
 scalaVersion := "2.11.8"
+
+crossScalaVersions := Seq("2.10.0", "2.11.8")
 
 lazy val root =
   project.in( file(".") )
