@@ -39,7 +39,7 @@ package object core {
 
   def *(): Column = new AllColumn()
 
-  def count(col: NamedColumn[_]) = new Count(col)
+  def count(col: Column) = new Count(col)
 
 
 

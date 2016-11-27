@@ -157,7 +157,7 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
   /**************/
   it should "support select count" in {
     executeAndMatch(
-      table select(count('*) as 'myCount),
+      table select(count(*) as 'myCount),
       List(new Row(Array(table.collectAsList().length)))
     )
   }
