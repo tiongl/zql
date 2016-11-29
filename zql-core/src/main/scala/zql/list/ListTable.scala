@@ -19,34 +19,35 @@ class ListTable[ROW: ClassTag](list: List[ROW], schema: TypedSchema[ROW]) extend
   }
 }
 
+object ListTable {
+
+  def apply[ROW: ClassTag](cols: ((ROW)=> Any)*) = {
+
+  }
+
+}
+
 
 class ListData[ROW](val list: List[ROW]) extends RowBased[ROW] {
-  def select(r: (ROW) => Row): RowBased[Row] = {
-    new ListData(list.map(r).toList)
-  }
 
-  override def filter(filter: (ROW) => Boolean): RowBased[ROW] = {
-    val filtered = list.filter(filter)
-    new ListData(filtered)
-  }
+  implicit def listToListData[T](list: List[T]) = new ListData[T](list)
+
+  def select(r: (ROW) => Row): RowBased[Row] = list.map(r).toList
+
+  override def filter(filter: (ROW) => Boolean): RowBased[ROW] = list.filter(filter)
 
   def groupBy(rowBased: RowBased[ROW], keyFunc: (ROW) => Seq[Any], valueFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBased[Row] = {
     val data = rowBased.asInstanceOf[ListData[ROW]].list
-    val groupedData = Utils.groupBy[ROW, Row](data,
-      (row: ROW) => keyFunc(row),
-      (row: ROW) => valueFunc(row),
-      (a: Row, b: Row) => a.aggregate(b, aggregatableIndices)
-    ).map(_.normalize).toList
-    new ListData[Row](groupedData)
+    Utils.groupBy[ROW, Row](data, keyFunc(_), valueFunc(_), _.aggregate(_, aggregatableIndices)).map(_.normalize).toList
   }
 
-  def reduce(reduceFunc: (ROW, ROW) => ROW) = new ListData(List(list.reduce(reduceFunc)))
+  def reduce(reduceFunc: (ROW, ROW) => ROW) = List(list.reduce(reduceFunc))
 
-  def map(mapFunc: (ROW) => Row) = new ListData(list.map(mapFunc))
+  def map(mapFunc: (ROW) => Row) = list.map(mapFunc)
 
-  def sortBy[K](keyFunc: (ROW) => K, ordering: Ordering[K], ctag: ClassTag[K]): RowBased[ROW] = new ListData(list.sortBy(keyFunc)(ordering))
+  def sortBy[K](keyFunc: (ROW) => K, ordering: Ordering[K], ctag: ClassTag[K]) = new ListData(list.sortBy(keyFunc)(ordering))
 
-  def slice(offset: Int, until: Int) = new ListData(list.slice(offset, until))
+  def slice(offset: Int, until: Int) = list.slice(offset, until)
 
   def size() = list.length
 
