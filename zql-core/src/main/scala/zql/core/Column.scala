@@ -2,10 +2,6 @@ package zql.core
 
 import zql.core.util.Utils
 
-import scala.reflect.ClassTag
-import scala.Boolean
-
-
 /** a generic column **/
 abstract class Column extends Serializable {
 
@@ -180,40 +176,30 @@ class Divide(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, 
 /* Real data columns*/
 /********************/
 /* named column */
-abstract class NamedColumn[T](val name: Symbol) extends TypedColumn[T] with OrderSpec {
+abstract class DataColumn[T](val name: Symbol) extends TypedColumn[T] with OrderSpec {
   def requiredColumns = Set(name)
 }
 
 
-class NumericNamedColumn[T](n: Symbol) extends NamedColumn[T](n) with NumericColumn {
+class NumericDataColumn[T](n: Symbol) extends DataColumn[T](n) with NumericColumn {
   override def castToNumeric = { this }
 }
 
-class IntColumn(n: Symbol) extends NumericNamedColumn[Int](n)
+class IntColumn(n: Symbol) extends NumericDataColumn[Int](n)
 
-class LongColumn(n: Symbol) extends NumericNamedColumn[Long](n)
+class LongColumn(n: Symbol) extends NumericDataColumn[Long](n)
 
-class FloatColumn(n: Symbol) extends NumericNamedColumn[Float](n)
+class FloatColumn(n: Symbol) extends NumericDataColumn[Float](n)
 
-class DoubleColumn(n: Symbol) extends NumericNamedColumn[Double](n)
+class DoubleColumn(n: Symbol) extends NumericDataColumn[Double](n)
 
-class StringColumn(n: Symbol) extends NamedColumn[String](n)
+class StringColumn(n: Symbol) extends DataColumn[String](n)
 
-class BooleanColumn(n: Symbol) extends NamedColumn[Boolean](n)
+class BooleanColumn(n: Symbol) extends DataColumn[Boolean](n)
 
-class UntypedColumn(n: Symbol) extends NamedColumn[Any](n) {
-  override def castToNumeric: NumericColumn = new NumericNamedColumn(n)
+class UntypedColumn(n: Symbol) extends DataColumn[Any](n) {
+  override def castToNumeric: NumericColumn = new NumericDataColumn(n)
 }
-
-//class FuncColumn[R_TYPE](func: (R_TYPE) => Any) extends TypedColumn[Any] with WithAccessor[Any]{
-//  override def getColumnAccessor[ROW](compiler: Compiler[_], schema: TypedSchema[ROW]): ColumnAccessor[ROW, Any] = new ColumnAccessor[ROW, Any] {
-//    def apply(obj: ROW): Any = func(obj.asInstanceOf[R_TYPE])
-//  }
-//
-//  override def requiredColumns: Set[Symbol] = Set(name)
-//
-//  override def name: Symbol = Symbol(func.toString())
-//}
 
 /*******************/
 /* Literal columns */
@@ -249,10 +235,9 @@ class AllColumn extends MultiColumn {
 
   def toColumns(schema: TypedSchema[_]) = {
     //TODO: make compilation to use MultiColumn interface
-    schema.allColumns().map(new UntypedColumn(_)).toSeq
+    schema.allColumnNames.map(new UntypedColumn(_)).toSeq
   }
 }
-
 
 /********************/
 /* Function columns */

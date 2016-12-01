@@ -2,6 +2,8 @@ package zql
 
 import zql.core.util.Utils
 
+import scala.reflect.ClassTag
+
 /**
   * Created by tiong on 7/4/16.
   */
@@ -23,9 +25,9 @@ package object core {
 
   implicit def booleanColumn(bool: Boolean): BooleanLiteralColumn = new BooleanLiteralColumn(bool)
 
-  implicit def toNumeric(col: UntypedColumn): NumericColumn = new NumericNamedColumn(col.name)
+  implicit def toNumeric(col: UntypedColumn): NumericColumn = new NumericDataColumn(col.name)
 
-  def sum(col: UntypedColumn): Sum = sum(new NumericNamedColumn(col.name)) //upgrade to numeric column
+  def sum(col: UntypedColumn): Sum = sum(new NumericDataColumn(col.name)) //upgrade to numeric column
 
   def sum(col: NumericColumn): Sum = new Sum(col)
 
@@ -41,6 +43,9 @@ package object core {
 
   def count(col: Column) = new Count(col)
 
+  implicit def symToReflectionColumnDef[ROW: ClassTag](sym: Symbol): ReflectionColumnDef[ROW] = {
+    new ReflectionColumnDef[ROW](sym)
+  }
 
 
 }

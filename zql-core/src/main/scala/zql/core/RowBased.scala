@@ -3,6 +3,7 @@ package zql.core
 import zql.core.util.Utils.SeqOrdering
 
 import scala.reflect.ClassTag
+import scala.util.Try
 
 trait RowBased[ROW] {
   def slice(offset: Int, until: Int): RowBased[ROW]
@@ -18,9 +19,54 @@ trait RowBased[ROW] {
 
 }
 
+class TypedSchema[ROW](val allColumns: ColumnDef*) extends Schema
+
+abstract class Getter {
+  def get(obj: Any): Any
+}
+
+//NOTE: lazy field are mainly to accomodate distributed computation because Method/Field are not serializable
+case class LazyField(className: String, fieldName: String) extends Getter{
+  @transient lazy val field = Class.forName(className).getField(fieldName)
+  def get(obj: Any) = field.get(obj)
+}
+
+case class LazyMethod(className: String, methodName: String) extends Getter {
+  @transient lazy val method = Class.forName(className).getMethod(methodName)
+  def get(obj: Any) = method.invoke(obj)
+}
+
+abstract class TypedColumnDef[T](name: Symbol) extends ColumnDef(name) with ((T) => Any)
+
+class RowColumnDef(name: Symbol, i: Int) extends TypedColumnDef[Row](name){
+  override def apply(v1: Row): Any = v1.data(i)
+}
+
+class ReflectionColumnDef[T: ClassTag](name: Symbol) extends TypedColumnDef[T](name) {
+
+  @transient implicit val ctag = scala.reflect.classTag[T].runtimeClass
+  val getter: Getter = {
+    val fieldName = name.name
+    val field = Try(ctag.getField(fieldName)).getOrElse(null)
+    if (field != null) {
+      new LazyField(ctag.getCanonicalName, fieldName)
+    } else {
+      val getter = ctag.getMethod(fieldName)
+      if (getter != null) {
+        new LazyMethod(ctag.getCanonicalName, fieldName)
+      } else {
+        throw new IllegalArgumentException("Unknown column " + fieldName + " for type " + ctag)
+      }
+    }
+  }
+
+  override def apply(v1: T): Any = getter.get(v1)
+}
+
 abstract class RowBasedTable[T](schema: TypedSchema[T]) extends TypedTable[T](schema){
 
   def data: RowBased[T]
+
 
   override def compile(stmt: Statement): Executable[Table] = {
     new RowBasedCompiler(this, schema).compile(stmt)
@@ -52,9 +98,15 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
     import zql.core.ExecutionPlan._
     validate(stmt)
 
-    val selectMappings = compileSelects(stmt._selects, schema)
-    val newColumns = selectMappings.map(_._1)
-    val resultSchema = new RowSchema(newColumns)
+    val expandedSelects = stmt._selects.flatMap{
+      case mc: MultiColumn =>
+        mc.toColumns(schema)
+      case c => Seq(c)
+    }
+    val newColumns = expandedSelects.zipWithIndex.map{
+      case (col, index) => new RowColumnDef(col.getName, index)
+    }
+    val resultSchema = new TypedSchema[Row](newColumns: _*)
     val rowBased = table.data
     val execPlan = plan("Query"){
       first("Filter the data"){
@@ -65,10 +117,10 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
         filteredData
       }.next("Grouping the data") {
         filteredData =>
-          val selects = selectMappings.map(_._2)
+          val selects = expandedSelects.map(c => compileColumn[ROW](c, schema))
           val selectFunc = (row: ROW) => new Row(selects.map(_(row)).toArray)
           //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
-          val groupByIndices = stmt._selects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
+          val groupByIndices = expandedSelects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
           val groupedProcessData = if (stmt._groupBy!=null){
             val groupByAccessors = stmt._groupBy.map(compileColumn[ROW](_, schema))
             val groupByFunc = (row: ROW) => groupByAccessors.map(_(row))
@@ -160,7 +212,8 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
   }
 
   def compileColumn[ROW](col: Column, schema: TypedSchema[ROW]): ColumnAccessor[ROW, _] = {
-    col match {
+
+    val results = col match {
       case mc: MultiColumn =>
         //to handle count(*)
         new ColumnAccessor[ROW, Any] {
@@ -172,8 +225,15 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
         new ColumnAccessor[ROW, Any] {
           override def apply(v1: ROW) = lc.value
         }
-      case c: NamedColumn[_] =>
-        schema.getColumnAccessor(c.name)
+      case c: DataColumn[_] =>
+        schema.columnMap(c.getName) match {
+          case colDef: TypedColumnDef[ROW] =>
+            new ColumnAccessor[ROW, Any]{
+              override def apply(v1: ROW): Any = colDef(v1)
+            }
+          case uc =>
+            throw new IllegalArgumentException("Unknown column " + c.getName + " type " + uc)
+        }
       case bf: BinaryFunction[Any] =>
         new ColumnAccessor[ROW, Any] {
           val a = compileColumn[ROW](bf.a, schema)
@@ -188,6 +248,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
       case _ =>
         throw new IllegalArgumentException("Unknown column type " + col)
     }
+    results
   }
 
 }

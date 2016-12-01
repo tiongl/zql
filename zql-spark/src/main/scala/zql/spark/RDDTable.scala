@@ -43,11 +43,19 @@ class RDDData[T: ClassTag](val rdd: RDD[T]) extends RowBased[T]{
   def isLazy = true
 }
 
-class RDDTable[ROW: ClassTag](rdd: RDD[ROW], schema: TypedSchema[ROW]) extends RowBasedTable(schema) {
+class RDDTable[ROW: ClassTag](schema: TypedSchema[ROW], rdd: RDD[ROW]) extends RowBasedTable(schema) {
   override def data: RowBased[ROW] = new RDDData(rdd)
 
   override def createTable[T: ClassManifest](rowBased: RowBased[T], newSchema: TypedSchema[T]): RowBasedTable[T] = {
     val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
-    new RDDTable[T](rdd, newSchema)
+    new RDDTable[T](newSchema, rdd)
+  }
+}
+
+
+object RDDTable {
+  def apply[ROW: ClassTag](cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {
+    val schema = new TypedSchema[ROW](cols: _*)
+    new RDDTable[ROW](schema, data)
   }
 }

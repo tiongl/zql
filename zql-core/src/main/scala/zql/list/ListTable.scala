@@ -9,22 +9,33 @@ import scala.reflect.ClassTag
 
 
 
-class ListTable[ROW: ClassTag](list: List[ROW], schema: TypedSchema[ROW]) extends RowBasedTable[ROW](schema) {
+class ListTable[ROW: ClassTag](schema: TypedSchema[ROW], list: List[ROW]) extends RowBasedTable[ROW](schema) {
 
   val data = new ListData(list)
 
   override def createTable[T: ClassTag](rowBased: RowBased[T], newSchema: TypedSchema[T]): RowBasedTable[T] = {
     val list = rowBased.asInstanceOf[ListData[T]].list
-    new ListTable(list, newSchema)
+    new ListTable(newSchema, list)
   }
 }
 
 object ListTable {
 
-  def apply[ROW: ClassTag](cols: ((ROW)=> Any)*) = {
 
+  def apply[ROW: ClassTag](cols: TypedColumnDef[ROW]*)(data: List[ROW]) = {
+    val schema = new TypedSchema[ROW](cols: _*)
+    new ListTable[ROW](schema, data)
   }
 
+  def create[ROW: ClassTag](cols: (Symbol, (ROW) => Any)*)(data: List[ROW]) = {
+    val typeCols = cols.map {
+      case (sym, func) => new TypedColumnDef[ROW](sym) {
+        override def apply(v1: ROW): Any = func.apply(v1)
+      }
+    }
+    val schema = new TypedSchema[ROW](typeCols: _*)
+    new ListTable[ROW](schema, data)
+  }
 }
 
 

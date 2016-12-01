@@ -8,9 +8,6 @@ object ListTableExample {
     //the domain object
     case class Person(id: Int, val firstName: String, val lastName: String, age: Int, spouseId: Int)
 
-    //the schema
-    val schema = new ReflectedSchema[Person](Seq('id, 'firstName, 'lastName, 'age))
-
     //the data
     val data = Seq(//
       new Person(0, "John", "Smith", 20, 4), //
@@ -21,7 +18,7 @@ object ListTableExample {
       new Person(4, "Anna", "Doe", 10, 1) //
     ).toList
 
-    val listTable = new ListTable(data, schema)
+    val listTable = ListTable[Person]('id, 'firstName, 'lastName, 'age)(data)
 
     /** Example 1 **/
     val statement1 = listTable select (*) where ('firstName === "John") limit (5) //pick first 5 johns
