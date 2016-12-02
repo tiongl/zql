@@ -2,7 +2,7 @@ package zql.core
 
 import scala.collection.mutable
 
-trait Executable[+T]{
+trait Executable[+T] {
   def execute(): T
 }
 
@@ -14,7 +14,6 @@ trait Compilable {
   def compile(): Executable[Table]
 }
 
-
 trait StatementWrapper extends Compilable {
   def statement(): Statement
 
@@ -23,7 +22,7 @@ trait StatementWrapper extends Compilable {
 
 class StatementEnd(val statement: Statement) extends StatementWrapper
 
-trait Limitable extends StatementWrapper{
+trait Limitable extends StatementWrapper {
   def limit(count: Int): StatementEnd = limit(0, count)
   def limit(offset: Int, count: Int): StatementEnd = new StatementEnd(statement.limit((offset, count)))
 }
@@ -63,15 +62,16 @@ class Selected(selects: Seq[Column], table: Table) extends Groupable with Wherea
 //  def compile() = table.compile(this)
 //}
 
-case class Statement(val _from: Table = null,
-                     val _selects: Seq[Column] = null,
-                     val _where: Condition = null,
-                     val _groupBy: Seq[Column] = null,
-                     val _orderBy: Seq[OrderSpec] = null,
-                     val _limit: (Int, Int) = null,
-                     val _having: Condition = null) //having
-                    extends Compilable
-{
+case class Statement(
+  val _from: Table = null,
+  val _selects: Seq[Column] = null,
+  val _where: Condition = null,
+  val _groupBy: Seq[Column] = null,
+  val _orderBy: Seq[OrderSpec] = null,
+  val _limit: (Int, Int) = null,
+  val _having: Condition = null
+) //having
+    extends Compilable {
   def select(selects: Seq[Column]) =
     new Statement(_from, selects, _where, _groupBy, _orderBy, _limit, _having)
 
@@ -93,6 +93,6 @@ case class Statement(val _from: Table = null,
   def having(having: Condition) =
     new Statement(_from, _selects, _where, _groupBy, _orderBy, _limit, having)
 
-  def compile =  _from.compile(this)
+  def compile = _from.compile(this)
 }
 

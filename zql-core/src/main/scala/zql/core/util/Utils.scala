@@ -7,7 +7,7 @@ import scala.collection.mutable
 object Utils {
   def groupBy[T, D](traversable: Traversable[T], keyFunc: (T) => Any, valueFunc: (T) => D, reduceFunc: (D, D) => D): Iterable[D] = {
     val linkedHash = new mutable.LinkedHashMap[Any, D]
-    val results = traversable.foreach{
+    val results = traversable.foreach {
       data =>
         val key = keyFunc.apply(data)
         val value = valueFunc.apply(data)
@@ -38,7 +38,6 @@ object Utils {
     }
   }
 
-
   def <(a: Any, b: Any): Boolean = {
     compare(a, b) == -1
   }
@@ -63,7 +62,7 @@ object Utils {
         case ((a, b), index) =>
           val comparedValue = Utils.compare(a, b)
           if (comparedValue != 0) {
-            if (ascendings(index)){
+            if (ascendings(index)) {
               return comparedValue
             } else {
               return comparedValue * -1

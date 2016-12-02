@@ -6,8 +6,8 @@ import zql.core.util.Utils
 import scala.reflect.ClassTag
 
 /**
-  * Created by tiong on 7/4/16.
-  */
+ * Created by tiong on 7/4/16.
+ */
 package object core {
 
   implicit def untypedColumn(symbol: Symbol): UntypedColumn = {
@@ -39,7 +39,6 @@ package object core {
 
   def NOT(col: Condition): NotCondition = new NotCondition(col)
 
-
   def *(): Column = new AllColumn()
 
   def count(col: Column) = new Count(col)
@@ -47,6 +46,5 @@ package object core {
   implicit def symToReflectionColumnDef[ROW: ClassTag](sym: Symbol): ReflectionColumnDef[ROW] = {
     new ReflectionColumnDef[ROW](sym)
   }
-
 
 }

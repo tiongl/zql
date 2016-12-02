@@ -26,11 +26,11 @@ class ChainedStep[IN, OUT](val desc: String, prev: ExecutableStep[IN], func: (IN
 }
 
 /**
-  * Represent an execution plan
-  *
-  * @param desc
-  */
-class ExecutionPlan[That](desc: String, lastStep: ExecutableStep[That]) extends Executable[That]{
+ * Represent an execution plan
+ *
+ * @param desc
+ */
+class ExecutionPlan[That](desc: String, lastStep: ExecutableStep[That]) extends Executable[That] {
 
   /** a unique id **/
   val id = ExecutionPlan.ID_COUNTER.addAndGet(1)
@@ -42,8 +42,7 @@ object ExecutionPlan {
   /** id counter **/
   val ID_COUNTER = new AtomicLong()
 
-
-  def plan[T](name: String)(planFunc: => ExecutableStep[T]): ExecutionPlan[T] =  {
+  def plan[T](name: String)(planFunc: => ExecutableStep[T]): ExecutionPlan[T] = {
     new ExecutionPlan(name, planFunc)
   }
 
@@ -56,12 +55,11 @@ object ExecutionPlan {
     println(data)
   }
 
-
   def main(args: Array[String]) {
     val p = plan("test") {
-      first("One"){
+      first("One") {
         1
-      }.next("Two"){
+      }.next("Two") {
         _ + 1
       }
     }

@@ -4,8 +4,6 @@ import zql.core._
 import zql.core.util.Utils
 import scala.reflect.ClassTag
 
-
-
 class ListTable[ROW: ClassTag](schema: TypedSchema[ROW], list: List[ROW]) extends RowBasedTable[ROW](schema) {
 
   val data = new ListData(list)
@@ -17,7 +15,6 @@ class ListTable[ROW: ClassTag](schema: TypedSchema[ROW], list: List[ROW]) extend
 }
 
 object ListTable {
-
 
   type ROWFUNC[ROW] = (ROW) => Any
 
@@ -36,7 +33,6 @@ object ListTable {
     new ListTable[ROW](schema, data)
   }
 }
-
 
 class ListData[ROW](val list: List[ROW]) extends RowBased[ROW] {
 

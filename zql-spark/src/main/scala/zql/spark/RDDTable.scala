@@ -5,14 +5,12 @@ import zql.core._
 
 import scala.reflect.ClassTag
 
-class RDDData[T: ClassTag](val rdd: RDD[T]) extends RowBased[T]{
+class RDDData[T: ClassTag](val rdd: RDD[T]) extends RowBased[T] {
 
   implicit def rddToRDDData[T: ClassTag](rdd: RDD[T]) = new RDDData(rdd)
 
   //This is slow as we zipWithIndex to filter the rows we need.
   override def slice(offset: Int, untilN: Int) = rdd.zipWithIndex().filter(t => t._2 >= offset && t._2 < untilN).map(_._1)
-
-
 
   override def reduce(reduceFunc: (T, T) => T): RowBased[T] = {
     val reduce = rdd.reduce(reduceFunc)
@@ -22,7 +20,7 @@ class RDDData[T: ClassTag](val rdd: RDD[T]) extends RowBased[T]{
   override def filter(filter: (T) => Boolean): RowBased[T] = rdd.filter(filter)
 
   override def groupBy(rowBased: RowBased[T], keyFunc: (T) => Seq[Any], valueFunc: (T) => Row, aggregatableIndices: Array[Int]): RowBased[Row] = {
-    rdd.map{ row => ( keyFunc(row), valueFunc(row))}.
+    rdd.map { row => (keyFunc(row), valueFunc(row)) }.
       reduceByKey(_.aggregate(_, aggregatableIndices)).map(_._2)
   }
 
@@ -49,7 +47,6 @@ class RDDTable[ROW: ClassTag](schema: TypedSchema[ROW], rdd: RDD[ROW]) extends R
     new RDDTable[T](newSchema, rdd)
   }
 }
-
 
 object RDDTable {
   def apply[ROW: ClassTag](cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {

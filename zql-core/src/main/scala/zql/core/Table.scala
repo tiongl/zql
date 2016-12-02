@@ -5,9 +5,8 @@ import java.lang.reflect.Field
 import scala.reflect.ClassTag
 
 /**
-  * Created by tiong on 6/2/16.
-  */
-
+ * Created by tiong on 6/2/16.
+ */
 
 abstract class Table {
   def schema: Schema
@@ -21,17 +20,15 @@ abstract class Table {
 
 abstract class TypedTable[T](val schema: TypedSchema[T]) extends Table
 
-
-
-class EmptyRow(array: Array[Any]) extends Row(array){
+class EmptyRow(array: Array[Any]) extends Row(array) {
   override def aggregate(row: Row, indices: Array[Int]): Row = row
 }
 
-case class Row(val data: Array[Any]){
+case class Row(val data: Array[Any]) {
   def aggregate(row: Row, indices: Array[Int]): Row = {
     //TODO: make sure this won't have side effect as we use shallow copy
     val newRow = new Row(data)
-    indices.foreach{i =>
+    indices.foreach { i =>
       val a = data(i).asInstanceOf[Aggregatable[Any]]
       val b = row.data(i).asInstanceOf[Aggregatable[Any]]
       newRow.data(i) = a.aggregate(b)
@@ -56,7 +53,4 @@ case class Row(val data: Array[Any]){
 
   override def toString = data.mkString(",")
 }
-
-
-
 
