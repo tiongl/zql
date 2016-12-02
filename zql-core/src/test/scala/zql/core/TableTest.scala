@@ -13,6 +13,23 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
     val results = statement.compile.execute().collectAsList()
     results should be (rows)
   }
+
+  it should "support all operations" in {
+    val one = new IntLiteral(1)
+    val str = new StringLiteral("test")
+    executeAndMatch(
+      //TODO: string + is not working
+      table select( one + 1, one  - 1, one  * 2, one/2),
+      data.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1/2)))
+    )
+
+    //equality
+    executeAndMatch(
+      table select(one > 1, one > 0, one > -1,  one >= 1, one >= 0, one >= -1,  one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1),
+      data.map(p => new Row(Array(1 > 1, 1 > 0, 1 > -1,  1 >= 1, 1 >= 0, 1 >= -1,  1 == 1, 1 == 0, 1 == -1, 1 != 1, 1 != 0, 1 != -1, 1 < 1, 1 < 0, 1 < -1, 1 <= 1, 1 <= 0, 1 <= -1)))
+    )
+  }
+
   it should "support select with math operations" in {
     executeAndMatch(
       table select (1 + 1, 'firstName, 'age + 1),
@@ -147,6 +164,13 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
     executeAndMatch(
       table select(*) limit (1, 3),
       data.slice(1, 4).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
+      )
+    )
+
+    executeAndMatch(
+      table select(*) limit (3),
+      data.slice(0, 3).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
       )
     )

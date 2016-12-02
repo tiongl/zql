@@ -1,5 +1,6 @@
 package zql
 
+import zql.core.ReflectionColumnDef
 import zql.core.util.Utils
 
 import scala.reflect.ClassTag
@@ -13,7 +14,7 @@ package object core {
     new UntypedColumn(symbol)
   }
 
-  implicit def stringLiteralColumn(string: String): StringLiteralColumn = new StringLiteralColumn(string)
+  implicit def stringLiteralColumn(string: String): StringLiteral = new StringLiteral(string)
 
   implicit def intLiteral(number: Int): IntLiteral = new IntLiteral(number)
 
@@ -23,7 +24,7 @@ package object core {
 
   implicit def doubleLiteral(number: Double): DoubleLiteral = new DoubleLiteral(number)
 
-  implicit def booleanColumn(bool: Boolean): BooleanLiteralColumn = new BooleanLiteralColumn(bool)
+  implicit def booleanColumn(bool: Boolean): BooleanLiteral = new BooleanLiteral(bool)
 
   implicit def toNumeric(col: UntypedColumn): NumericColumn = new NumericDataColumn(col.name)
 

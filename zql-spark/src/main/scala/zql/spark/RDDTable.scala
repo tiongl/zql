@@ -2,8 +2,6 @@ package zql.spark
 
 import org.apache.spark.rdd.RDD
 import zql.core._
-import zql.core.util.Utils.SeqOrdering
-import zql.list.ListTable
 
 import scala.reflect.ClassTag
 

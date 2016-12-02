@@ -30,7 +30,7 @@ abstract class Column extends Serializable {
 
   def >=(other: Column): Condition = new GreaterThanEquals(castToNumeric, other.castToNumeric)
 
-  def +(other: Column): Function[Any] = new Plus(castToNumeric, other.castToNumeric)
+  def +(other: Column): Function[Any] = new Plus(this, other)
 
   def -(other: Column): NumericColumn = new Minus(castToNumeric, other.castToNumeric)
 
@@ -99,17 +99,23 @@ abstract class BinaryCondition(val a: Condition, val b: Condition) extends Condi
 
 /** a composite condition **/
 class AndCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
+  // $COVERAGE-OFF$
   def name = Symbol(s"AND(${a.getName},${b.getName})")
+  // $COVERAGE-ON
   def evaluate(a: Boolean, b: Boolean) = a && b
 }
 
 class OrCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
+  // $COVERAGE-OFF$
   def name = Symbol(s"OR(${a.getName},${b.getName})")
+  // $COVERAGE-ON
   def evaluate(a: Boolean, b: Boolean) = a || b
 }
 
 class NotCondition(val a: TypedColumn[Boolean]) extends Condition(a){
+  // $COVERAGE-OFF$
   def name = Symbol(s"Not(${a.getName})")
+  // $COVERAGE-ON
   def evaluate(a: Boolean) = !a
 }
 
@@ -118,33 +124,45 @@ abstract class EqualityCondition(val a: Column, val b: Column) extends Condition
 }
 
 class Equals(a: Column, b: Column) extends EqualityCondition(a, b) {
+  // $COVERAGE-OFF$
   def name = Symbol(s"Eq(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = a == b
 }
 
 class NotEquals(a: Column, b: Column) extends EqualityCondition(a, b){
+  // $COVERAGE-OFF$
   def name = Symbol(s"NotEq(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = a != b
 }
 
 class LessThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
+  // $COVERAGE-OFF$
   def name = Symbol(s"LessThan(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = Utils.<(a, b)
 }
 
 class LessThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
+  // $COVERAGE-OFF$
   def name = Symbol(s"LessThanEquals(${a.getName},${b.getName})")
+  // $COVERAGE-ON
   def evaluate(a: Any, b: Any) = Utils.<=(a, b)
 }
 
 
 class GreaterThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
+  // $COVERAGE-OFF$
   def name = Symbol(s"GreaterThan(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = Utils.>(a, b)
 }
 
 class GreaterThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b){
+  // $COVERAGE-OFF$
   def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
+  // $COVERAGE-ON
   def evaluate(a: Any, b: Any) = Utils.>=(a, b)
 }
 
@@ -153,22 +171,30 @@ abstract class BinaryFunction[T](val a: Column, val b: Column) extends Function[
 }
 
 class Plus(a: Column, b: Column) extends BinaryFunction[Any](a, b) {
+  // $COVERAGE-OFF$
   def name = Symbol(s"Plus(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = NumericColumn.+(a, b)
 }
 
 class Minus(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
+  // $COVERAGE-OFF$
   def name = Symbol(s"Minus(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = NumericColumn.-(a, b)
 }
 
 class Multiply(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn{
+  // $COVERAGE-OFF$
   def name = Symbol(s"Multiply(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = NumericColumn.*(a, b)
 }
 
 class Divide(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn{
+  // $COVERAGE-OFF$
   def name = Symbol(s"Divide(${a.getName},${b.getName})")
+  // $COVERAGE-ON$
   def evaluate(a: Any, b: Any) = NumericColumn./(a, b)
 }
 
@@ -197,6 +223,8 @@ class StringColumn(n: Symbol) extends DataColumn[String](n)
 
 class BooleanColumn(n: Symbol) extends DataColumn[Boolean](n)
 
+class ByteColumn(n: Symbol) extends DataColumn[Byte](n)
+
 class UntypedColumn(n: Symbol) extends DataColumn[Any](n) {
   override def castToNumeric: NumericColumn = new NumericDataColumn(n)
 }
@@ -221,17 +249,20 @@ class FloatLiteral(value: Float) extends NumericLiteral[Float](value)
 
 class DoubleLiteral(value: Double) extends NumericLiteral[Double](value)
 
-class StringLiteralColumn(value: String) extends LiteralColumn[String](value)
+class StringLiteral(value: String) extends LiteralColumn[String](value)
 
-class BooleanLiteralColumn(value: Boolean) extends LiteralColumn[Boolean](value)
+class BooleanLiteral(value: Boolean) extends LiteralColumn[Boolean](value)
 
 abstract class MultiColumn extends Column {
   def toColumns(schema: TypedSchema[_]): Seq[Column]
 }
 
 class AllColumn extends MultiColumn {
+  // $COVERAGE-OFF$
   def requiredColumns = Set()
+
   def name = Symbol("*")
+  // $COVERAGE-ON$
 
   def toColumns(schema: TypedSchema[_]) = {
     //TODO: make compilation to use MultiColumn interface
@@ -264,7 +295,9 @@ case class Summable(val value: Number) extends Aggregatable[Number] {
 }
 
 class Sum(val col: NumericColumn) extends AggregateFunction[Number](col) {
+  // $COVERAGE-OFF$
   def name = Symbol(s"SUM(${col.getName})")
+  // $COVERAGE-ON$
   def createAggregatable(v1: Seq[Any]) = new Summable(v1(0).asInstanceOf[Int])
 }
 
@@ -277,6 +310,8 @@ case class Countable(val value: Number) extends Aggregatable[Number] {
 }
 
 class Count(val col: Column) extends AggregateFunction[Number](col) {
+  // $COVERAGE-OFF$
   def name = Symbol(s"COUNT(${col.getName}")
+  // $COVERAGE-ON
   def createAggregatable(v1: Seq[Any]) = new Countable(1)
 }

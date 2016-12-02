@@ -2,9 +2,6 @@ package zql.list
 
 import zql.core._
 import zql.core.util.Utils
-import zql.core.util.Utils.SeqOrdering
-
-import scala.collection.mutable
 import scala.reflect.ClassTag
 
 
@@ -22,12 +19,14 @@ class ListTable[ROW: ClassTag](schema: TypedSchema[ROW], list: List[ROW]) extend
 object ListTable {
 
 
-  def apply[ROW: ClassTag](cols: TypedColumnDef[ROW]*)(data: List[ROW]) = {
-    val schema = new TypedSchema[ROW](cols: _*)
+  type ROWFUNC[ROW] = (ROW) => Any
+
+  def apply[ROW: ClassTag](cols: ROWFUNC[ROW]*)(data: List[ROW]) = {
+    val schema = new TypedSchema[ROW](cols.map(_.asInstanceOf[TypedColumnDef[_]]): _*)
     new ListTable[ROW](schema, data)
   }
 
-  def create[ROW: ClassTag](cols: (Symbol, (ROW) => Any)*)(data: List[ROW]) = {
+  def create[ROW: ClassTag](cols: (Symbol, ROWFUNC[ROW])*)(data: List[ROW]) = {
     val typeCols = cols.map {
       case (sym, func) => new TypedColumnDef[ROW](sym) {
         override def apply(v1: ROW): Any = func.apply(v1)

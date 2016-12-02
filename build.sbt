@@ -6,6 +6,20 @@ scalaVersion := "2.11.8"
 
 crossScalaVersions := Seq("2.10.0", "2.11.8")
 
+scalacOptions ++= Seq(
+  "-target:jvm-1.8",
+  "-encoding", "UTF-8",
+  "-unchecked",
+  "-deprecation",
+  "-Xfuture",
+  "-Yno-adapted-args",
+  "-Ywarn-dead-code",
+  "-Ywarn-numeric-widen",
+  "-Ywarn-value-discard",
+  "-Ywarn-unused",
+  "-Ytyper-debug"
+)
+
 lazy val root =
   project.in( file(".") )
     .aggregate(core, spark)
@@ -17,6 +31,6 @@ lazy val core = project.in( file("zql-core") ) settings (
   )
 
 lazy val spark = project in file("zql-spark") dependsOn( core % "compile->compile;test->test") settings (
-    libraryDependencies += "org.apache.spark" %% "spark-core" % "2.0.0" % "provided"
+  libraryDependencies += "org.apache.spark" %% "spark-core" % "2.0.0" % "provided"
   )
 
