@@ -18,7 +18,7 @@ abstract class Table {
   def collectAsList(): List[Any]
 }
 
-abstract class TypedTable[T](val schema: TypedSchema[T]) extends Table
+abstract class TypedTable[T](val schema: RowBasedSchema[T]) extends Table
 
 class EmptyRow(array: Array[Any]) extends Row(array) {
   override def aggregate(row: Row, indices: Array[Int]): Row = row

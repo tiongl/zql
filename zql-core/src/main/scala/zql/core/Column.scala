@@ -249,7 +249,7 @@ class StringLiteral(value: String) extends LiteralColumn[String](value)
 class BooleanLiteral(value: Boolean) extends LiteralColumn[Boolean](value)
 
 abstract class MultiColumn extends Column {
-  def toColumns(schema: TypedSchema[_]): Seq[Column]
+  def toColumns(schema: RowBasedSchema[_]): Seq[Column]
 }
 
 class AllColumn extends MultiColumn {
@@ -259,7 +259,7 @@ class AllColumn extends MultiColumn {
   def name = Symbol("*")
   // $COVERAGE-ON$
 
-  def toColumns(schema: TypedSchema[_]) = {
+  def toColumns(schema: RowBasedSchema[_]) = {
     //TODO: make compilation to use MultiColumn interface
     schema.allColumnNames.map(new UntypedColumn(_)).toSeq
   }

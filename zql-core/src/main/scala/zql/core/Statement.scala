@@ -6,8 +6,12 @@ trait Executable[+T] {
   def execute(): T
 }
 
+class CompileOption extends mutable.HashMap[String, String] {
+
+}
+
 trait Compiler[T <: Table] {
-  def compile(stmt: Statement): Executable[T]
+  def compile(stmt: Statement, option: CompileOption = new CompileOption): Executable[T]
 }
 
 trait Compilable {

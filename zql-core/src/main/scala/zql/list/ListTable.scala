@@ -4,11 +4,11 @@ import zql.core._
 import zql.core.util.Utils
 import scala.reflect.ClassTag
 
-class ListTable[ROW: ClassTag](schema: TypedSchema[ROW], list: List[ROW]) extends RowBasedTable[ROW](schema) {
+class ListTable[ROW: ClassTag](schema: RowBasedSchema[ROW], list: List[ROW]) extends RowBasedTable[ROW](schema) {
 
   val data = new ListData(list)
 
-  override def createTable[T: ClassTag](rowBased: RowBased[T], newSchema: TypedSchema[T]): RowBasedTable[T] = {
+  override def createTable[T: ClassTag](rowBased: RowBasedData[T], newSchema: RowBasedSchema[T]): RowBasedTable[T] = {
     val list = rowBased.asInstanceOf[ListData[T]].list
     new ListTable(newSchema, list)
   }
@@ -19,7 +19,7 @@ object ListTable {
   type ROWFUNC[ROW] = (ROW) => Any
 
   def apply[ROW: ClassTag](cols: ROWFUNC[ROW]*)(data: List[ROW]) = {
-    val schema = new TypedSchema[ROW](cols.map(_.asInstanceOf[TypedColumnDef[_]]): _*)
+    val schema = new RowBasedSchema[ROW](cols.map(_.asInstanceOf[TypedColumnDef[_]]): _*)
     new ListTable[ROW](schema, data)
   }
 
@@ -29,35 +29,36 @@ object ListTable {
         override def apply(v1: ROW): Any = func.apply(v1)
       }
     }
-    val schema = new TypedSchema[ROW](typeCols: _*)
+    val schema = new RowBasedSchema[ROW](typeCols: _*)
     new ListTable[ROW](schema, data)
   }
 }
 
-class ListData[ROW](val list: List[ROW]) extends RowBased[ROW] {
+class ListData[ROW](val list: List[ROW], option: CompileOption = new CompileOption) extends RowBasedData[ROW] {
 
-  implicit def listToListData[T](list: List[T]) = new ListData[T](list)
+  implicit def listToListData[T](list: List[T]) = new ListData[T](list, option)
 
-  def select(r: (ROW) => Row): RowBased[Row] = list.map(r).toList
+  override def select(r: (ROW) => Row): RowBasedData[Row] = list.map(r).toList
 
-  override def filter(filter: (ROW) => Boolean): RowBased[ROW] = list.filter(filter)
+  override def filter(filter: (ROW) => Boolean): RowBasedData[ROW] = list.filter(filter)
 
-  def groupBy(rowBased: RowBased[ROW], keyFunc: (ROW) => Seq[Any], valueFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBased[Row] = {
-    val data = rowBased.asInstanceOf[ListData[ROW]].list
-    Utils.groupBy[ROW, Row](data, keyFunc(_), valueFunc(_), _.aggregate(_, aggregatableIndices)).map(_.normalize).toList
+  override def groupBy(keyFunc: (ROW) => Seq[Any], valueFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row] = {
+    Utils.groupBy[ROW, Row](list, keyFunc(_), valueFunc(_), _.aggregate(_, aggregatableIndices)).map(_.normalize).toList
   }
 
-  def reduce(reduceFunc: (ROW, ROW) => ROW) = List(list.reduce(reduceFunc))
+  override def reduce(reduceFunc: (ROW, ROW) => ROW) = List(list.reduce(reduceFunc))
 
-  def map(mapFunc: (ROW) => Row) = list.map(mapFunc)
+  override def map(mapFunc: (ROW) => Row) = list.map(mapFunc)
 
-  def sortBy[K](keyFunc: (ROW) => K, ordering: Ordering[K], ctag: ClassTag[K]) = new ListData(list.sortBy(keyFunc)(ordering))
+  override def sortBy[K](keyFunc: (ROW) => K, ordering: Ordering[K], ctag: ClassTag[K]) = new ListData(list.sortBy(keyFunc)(ordering))
 
-  def slice(offset: Int, until: Int) = list.slice(offset, until)
+  override def slice(offset: Int, until: Int) = list.slice(offset, until)
 
-  def size() = list.length
+  override def size() = list.length
 
-  def asList = list
+  override def asList = list
 
-  def isLazy = false
+  override def isLazy = false
+
+  override def withOption(opt: CompileOption): RowBasedData[ROW] = new ListData(list, opt)
 }

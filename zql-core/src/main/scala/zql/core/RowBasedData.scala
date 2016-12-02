@@ -5,21 +5,21 @@ import zql.core.util.Utils.SeqOrdering
 import scala.reflect.ClassTag
 import scala.util.Try
 
-trait RowBased[ROW] {
-  def slice(offset: Int, until: Int): RowBased[ROW]
-  def select(r: (ROW) => Row): RowBased[Row]
-  def filter(filter: (ROW) => Boolean): RowBased[ROW]
-  def groupBy(rowBased: RowBased[ROW], keyFunc: (ROW) => Seq[Any], valueFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBased[Row]
-  def reduce(reduceFunc: (ROW, ROW) => ROW): RowBased[ROW]
-  def map(mapFunc: (ROW) => Row): RowBased[Row]
-  def sortBy[K](keyFunc: (ROW) => K, ordering: Ordering[K], tag: ClassTag[K]): RowBased[ROW]
+trait RowBasedData[ROW] {
+  def withOption(option: CompileOption): RowBasedData[ROW]
+  def slice(offset: Int, until: Int): RowBasedData[ROW]
+  def select(r: (ROW) => Row): RowBasedData[Row]
+  def filter(filter: (ROW) => Boolean): RowBasedData[ROW]
+  def groupBy(rowBased: RowBasedData[ROW], keyFunc: (ROW) => Seq[Any], valueFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row]
+  def reduce(reduceFunc: (ROW, ROW) => ROW): RowBasedData[ROW]
+  def map(mapFunc: (ROW) => Row): RowBasedData[Row]
+  def sortBy[K](keyFunc: (ROW) => K, ordering: Ordering[K], tag: ClassTag[K]): RowBasedData[ROW]
   def size: Int
   def asList: List[ROW]
   def isLazy: Boolean
-
 }
 
-class TypedSchema[ROW](val allColumns: ColumnDef*) extends Schema
+class RowBasedSchema[ROW](val allColumns: ColumnDef*) extends Schema
 
 abstract class Getter {
   def get(obj: Any): Any
@@ -63,15 +63,15 @@ class ReflectionColumnDef[T: ClassTag](name: Symbol) extends TypedColumnDef[T](n
   override def apply(v1: T): Any = getter.get(v1)
 }
 
-abstract class RowBasedTable[T](schema: TypedSchema[T]) extends TypedTable[T](schema) {
+abstract class RowBasedTable[T](schema: RowBasedSchema[T]) extends TypedTable[T](schema) {
 
-  def data: RowBased[T]
+  def data: RowBasedData[T]
 
   override def compile(stmt: Statement): Executable[Table] = {
     new RowBasedCompiler(this, schema).compile(stmt)
   }
 
-  def createTable[T: ClassTag](rowBased: RowBased[T], newShema: TypedSchema[T]): RowBasedTable[T]
+  def createTable[T: ClassTag](rowBased: RowBasedData[T], newShema: RowBasedSchema[T]): RowBasedTable[T]
 
   def collectAsList() = data.asList
 
@@ -82,7 +82,7 @@ abstract class ColumnAccessor[ROW, +T]() extends ((ROW) => T) with Serializable
 
 abstract class ConditionAccessor[ROW]() extends ColumnAccessor[ROW, Boolean]
 
-class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW]) extends Compiler[RowBasedTable[Row]] {
+class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[ROW]) extends Compiler[RowBasedTable[Row]] {
 
   def validate(stmt: Statement) = {
     if (stmt._groupBy != null) {
@@ -93,7 +93,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
     }
   }
 
-  def compile(stmt: Statement): Executable[RowBasedTable[Row]] = {
+  def compile(stmt: Statement, option: CompileOption): Executable[RowBasedTable[Row]] = {
     import zql.core.ExecutionPlan._
     validate(stmt)
 
@@ -105,7 +105,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
     val newColumns = expandedSelects.zipWithIndex.map {
       case (col, index) => new RowColumnDef(col.getName, index)
     }
-    val resultSchema = new TypedSchema[Row](newColumns: _*)
+    val resultSchema = new RowBasedSchema[Row](newColumns: _*)
     val rowBased = table.data
     val execPlan = plan("Query") {
       first("Filter the data") {
@@ -172,7 +172,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
     execPlan
   }
 
-  def compileSelects[ROW](selects: Seq[Column], schema: TypedSchema[ROW]): Seq[(Symbol, ColumnAccessor[ROW, _])] = {
+  def compileSelects[ROW](selects: Seq[Column], schema: RowBasedSchema[ROW]): Seq[(Symbol, ColumnAccessor[ROW, _])] = {
     selects.flatMap {
       case ac: MultiColumn =>
         ac.toColumns(schema).map(col =>
@@ -182,7 +182,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
     }
   }
 
-  def compileCondition[ROW](cond: Condition, schema: TypedSchema[ROW]): ColumnAccessor[ROW, Boolean] = {
+  def compileCondition[ROW](cond: Condition, schema: RowBasedSchema[ROW]): ColumnAccessor[ROW, Boolean] = {
     cond match {
       case bc: BinaryCondition =>
         val a = compileCondition[ROW](bc.a, schema)
@@ -206,13 +206,13 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: TypedSchema[ROW])
     }
   }
 
-  def compileOrdering(orderSpecs: Seq[OrderSpec], schema: TypedSchema[Row]): (Seq[ColumnAccessor[Row, _]], Ordering[Seq[Any]]) = {
+  def compileOrdering(orderSpecs: Seq[OrderSpec], schema: RowBasedSchema[Row]): (Seq[ColumnAccessor[Row, _]], Ordering[Seq[Any]]) = {
     val accessors = orderSpecs.map(compileColumn[Row](_, schema))
     val ordering = new SeqOrdering(orderSpecs.map(_.ascending).toArray)
     (accessors, ordering)
   }
 
-  def compileColumn[ROW](col: Column, schema: TypedSchema[ROW]): ColumnAccessor[ROW, _] = {
+  def compileColumn[ROW](col: Column, schema: RowBasedSchema[ROW]): ColumnAccessor[ROW, _] = {
 
     val results = col match {
       case mc: MultiColumn =>

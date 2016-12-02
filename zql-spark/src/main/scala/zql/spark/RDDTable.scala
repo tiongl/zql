@@ -1,48 +1,52 @@
 package zql.spark
 
 import org.apache.spark.rdd.RDD
+import zql.core
 import zql.core._
 
 import scala.reflect.ClassTag
 
-class RDDData[T: ClassTag](val rdd: RDD[T]) extends RowBased[T] {
+class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new CompileOption()) extends RowBasedData[T] {
 
-  implicit def rddToRDDData[T: ClassTag](rdd: RDD[T]) = new RDDData(rdd)
+  implicit def rddToRDDData[T: ClassTag](rdd: RDD[T]) = new RDDData(rdd, option)
 
   //This is slow as we zipWithIndex to filter the rows we need.
   override def slice(offset: Int, untilN: Int) = rdd.zipWithIndex().filter(t => t._2 >= offset && t._2 < untilN).map(_._1)
 
-  override def reduce(reduceFunc: (T, T) => T): RowBased[T] = {
+  override def reduce(reduceFunc: (T, T) => T): RowBasedData[T] = {
     val reduce = rdd.reduce(reduceFunc)
     rdd.sparkContext.parallelize[T](Seq(reduce), 1)
   }
 
-  override def filter(filter: (T) => Boolean): RowBased[T] = rdd.filter(filter)
+  override def filter(filter: (T) => Boolean): RowBasedData[T] = rdd.filter(filter)
 
-  override def groupBy(rowBased: RowBased[T], keyFunc: (T) => Seq[Any], valueFunc: (T) => Row, aggregatableIndices: Array[Int]): RowBased[Row] = {
-    rdd.map { row => (keyFunc(row), valueFunc(row)) }.
-      reduceByKey(_.aggregate(_, aggregatableIndices)).map(_._2)
+  override def groupBy(keyFunc: (T) => Seq[Any], valueFunc: (T) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row] = {
+    val tuples = rdd.map { row => (keyFunc(row), valueFunc(row)) }
+    tuples.reduceByKey(_.aggregate(_, aggregatableIndices)).map(_._2)
   }
 
   override def size: Int = ???
 
-  override def select(r: (T) => Row): RowBased[Row] = rdd.map(r)
+  override def select(r: (T) => Row): RowBasedData[Row] = rdd.map(r)
 
-  override def sortBy[K](keyFunc: (T) => K, ordering: Ordering[K], classTag: ClassTag[K]): RowBased[T] = {
+  override def sortBy[K](keyFunc: (T) => K, ordering: Ordering[K], classTag: ClassTag[K]): RowBasedData[T] = {
     rdd.sortBy(keyFunc)(ordering, classTag)
   }
 
   override def asList: List[T] = rdd.collect().toList
 
-  override def map(mapFunc: (T) => Row): RowBased[Row] = rdd.map(mapFunc)
+  override def map(mapFunc: (T) => Row): RowBasedData[Row] = rdd.map(mapFunc)
 
-  def isLazy = true
+  override def isLazy = true
+
+  override def withOption(option: CompileOption): RowBasedData[T] = new RDDData[T](rdd, option)
+
 }
 
-class RDDTable[ROW: ClassTag](schema: TypedSchema[ROW], rdd: RDD[ROW]) extends RowBasedTable(schema) {
-  override def data: RowBased[ROW] = new RDDData(rdd)
+class RDDTable[ROW: ClassTag](schema: RowBasedSchema[ROW], rdd: RDD[ROW]) extends RowBasedTable(schema) {
+  override def data: RowBasedData[ROW] = new RDDData(rdd)
 
-  override def createTable[T: ClassManifest](rowBased: RowBased[T], newSchema: TypedSchema[T]): RowBasedTable[T] = {
+  override def createTable[T: ClassManifest](rowBased: RowBasedData[T], newSchema: RowBasedSchema[T]): RowBasedTable[T] = {
     val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
     new RDDTable[T](newSchema, rdd)
   }
@@ -50,7 +54,7 @@ class RDDTable[ROW: ClassTag](schema: TypedSchema[ROW], rdd: RDD[ROW]) extends R
 
 object RDDTable {
   def apply[ROW: ClassTag](cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {
-    val schema = new TypedSchema[ROW](cols: _*)
+    val schema = new RowBasedSchema[ROW](cols: _*)
     new RDDTable[ROW](schema, data)
   }
 }
