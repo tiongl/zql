@@ -6,9 +6,8 @@ case class Person(id: Int, val firstName: String, val lastName: String, age: Int
   def toRow() = Seq(firstName, lastName, age)
 }
 
-
 trait PersonExample {
-  val data = Seq(//
+  val data = Seq( //
     new Person(0, "John", "Smith", 20, 4), //
     new Person(1, "John", "Doe", 71, 5), //
     new Person(2, "John", "Johnson", 5, -1), //

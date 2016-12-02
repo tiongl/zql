@@ -1,17 +1,17 @@
 package zql.core
 
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.{ FlatSpec, Matchers }
 import zql.core.util.Utils
 
 import scala.collection.mutable
 
-abstract class TableTest extends FlatSpec with Matchers with PersonExample{
+abstract class TableTest extends FlatSpec with Matchers with PersonExample {
 
   def table: Table
 
   def executeAndMatch(statement: Compilable, rows: List[Row]) = {
     val results = statement.compile.execute().collectAsList()
-    results should be (rows)
+    results should be(rows)
   }
 
   it should "support all operations" in {
@@ -19,14 +19,14 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
     val str = new StringLiteral("test")
     executeAndMatch(
       //TODO: string + is not working
-      table select( one + 1, one  - 1, one  * 2, one/2),
-      data.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1/2)))
+      table select (one + 1, one - 1, one * 2, one / 2),
+      data.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1 / 2)))
     )
 
     //equality
     executeAndMatch(
-      table select(one > 1, one > 0, one > -1,  one >= 1, one >= 0, one >= -1,  one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1),
-      data.map(p => new Row(Array(1 > 1, 1 > 0, 1 > -1,  1 >= 1, 1 >= 0, 1 >= -1,  1 == 1, 1 == 0, 1 == -1, 1 != 1, 1 != 0, 1 != -1, 1 < 1, 1 < 0, 1 < -1, 1 <= 1, 1 <= 0, 1 <= -1)))
+      table select (one > 1, one > 0, one > -1, one >= 1, one >= 0, one >= -1, one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1),
+      data.map(p => new Row(Array(1 > 1, 1 > 0, 1 > -1, 1 >= 1, 1 >= 0, 1 >= -1, 1 == 1, 1 == 0, 1 == -1, 1 != 1, 1 != 0, 1 != -1, 1 < 1, 1 < 0, 1 < -1, 1 <= 1, 1 <= 0, 1 <= -1)))
     )
   }
 
@@ -43,7 +43,6 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
       data.map(p => new Row(Array(1, "test", true))).toList
     )
   }
-
 
   it should "support select all" in {
     executeAndMatch(
@@ -68,47 +67,47 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
 
   it should "support simple filtering" in {
     executeAndMatch(
-      table select ('firstName, 'lastName) where ('firstName==="John"),
-      data.filter(_.firstName=="John").map(p => new Row(Array(p.firstName, p.lastName))).toList
+      table select ('firstName, 'lastName) where ('firstName === "John"),
+      data.filter(_.firstName == "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   it should "support filtering with aggregation" in {
     executeAndMatch(
-      table select (sum('age)) where ('firstName==="John"),
-      List(new Row(Array(data.filter(_.firstName=="John").map(_.age).sum)))
+      table select (sum('age)) where ('firstName === "John"),
+      List(new Row(Array(data.filter(_.firstName == "John").map(_.age).sum)))
     )
   }
 
   it should "support and filtering" in {
     executeAndMatch(
-      table select ('firstName, 'lastName) where ('firstName==="John" and 'lastName==="Smith"),
-      data.filter(p => p.firstName=="John" && p.lastName=="Smith").map(p => new Row(Array(p.firstName, p.lastName))).toList
+      table select ('firstName, 'lastName) where ('firstName === "John" and 'lastName === "Smith"),
+      data.filter(p => p.firstName == "John" && p.lastName == "Smith").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   it should "support or filtering" in {
     executeAndMatch(
-      table select ('firstName, 'lastName) where ('firstName==="John" or 'lastName==="Smith"),
-      data.filter(p => p.firstName=="John" || p.lastName=="Smith").map(p => new Row(Array(p.firstName, p.lastName))).toList
+      table select ('firstName, 'lastName) where ('firstName === "John" or 'lastName === "Smith"),
+      data.filter(p => p.firstName == "John" || p.lastName == "Smith").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   it should "support not filtering" in {
     executeAndMatch(
-      table select ('firstName, 'lastName) where (NOT('firstName==="John")),
-      data.filter(p => p.firstName!="John").map(p => new Row(Array(p.firstName, p.lastName))).toList
+      table select ('firstName, 'lastName) where (NOT('firstName === "John")),
+      data.filter(p => p.firstName != "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   it should "validate groupby must have aggregate function" in {
     try {
-      val stmt = table select('firstName, 'lastName) groupBy ('firstName)
+      val stmt = table select ('firstName, 'lastName) groupBy ('firstName)
       stmt.compile
       throw new Exception("Groupby without aggregate function must fail")
     } catch {
       case e: IllegalArgumentException =>
-        e.getMessage should be ("Group by must have at least one aggregation function")
+        e.getMessage should be("Group by must have at least one aggregation function")
       case _ =>
         throw new Exception("Groupby without aggregate function must fail")
 
@@ -117,10 +116,11 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
 
   it should "support simple groupby function" in {
     executeAndMatch(
-      table select('firstName, sum('age)) groupBy ('firstName) orderBy('firstName), {
+      table select ('firstName, sum('age)) groupBy ('firstName) orderBy ('firstName), {
         //because some aggregation system (spark) has unordered result, we have to use order by here
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
-        Utils.groupBy[Person, Row](data,
+        Utils.groupBy[Person, Row](
+          data,
           _.firstName,
           p => new Row(Array(p.firstName, new Summable(p.age))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
@@ -131,20 +131,21 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
 
   it should "support groupby having " in {
     executeAndMatch(
-      table select('firstName, sum('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
+      table select ('firstName, sum('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
-        Utils.groupBy[Person, Row](data,
+        Utils.groupBy[Person, Row](
+          data,
           _.firstName,
           p => new Row(Array(p.firstName, new Summable(p.age))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
         )
-      }.map(_.normalize).filter(_.data(1).asInstanceOf[Int]>10).toList
+      }.map(_.normalize).filter(_.data(1).asInstanceOf[Int] > 10).toList
     )
   }
 
   it should "support select ordering" in {
     executeAndMatch(
-      table select(*) orderBy ('firstName),
+      table select (*) orderBy ('firstName),
       data.sortBy(_.firstName).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
       )
@@ -153,7 +154,7 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
 
   it should "support select ordering desc" in {
     executeAndMatch(
-      table select(*) orderBy ('firstName desc),
+      table select (*) orderBy ('firstName desc),
       data.sortBy(_.firstName)(Ordering.String.reverse).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
       )
@@ -162,14 +163,14 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
 
   it should "support limit" in {
     executeAndMatch(
-      table select(*) limit (1, 3),
+      table select (*) limit (1, 3),
       data.slice(1, 4).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
       )
     )
 
     executeAndMatch(
-      table select(*) limit (3),
+      table select (*) limit (3),
       data.slice(0, 3).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age))
       )
@@ -181,23 +182,23 @@ abstract class TableTest extends FlatSpec with Matchers with PersonExample{
   /**************/
   it should "support select count" in {
     executeAndMatch(
-      table select(count(*) as 'myCount),
+      table select (count(*) as 'myCount),
       List(new Row(Array(table.collectAsList().length)))
     )
   }
 
   it should "support select count with groupby" in {
     executeAndMatch(
-      table select('firstName, count('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
+      table select ('firstName, count('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
-        Utils.groupBy[Person, Row](data,
+        Utils.groupBy[Person, Row](
+          data,
           _.firstName,
           p => new Row(Array(p.firstName, new Countable(1))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
         )
-      }.map(_.normalize).filter(_.data(1).asInstanceOf[Int]>10).toList
+      }.map(_.normalize).filter(_.data(1).asInstanceOf[Int] > 10).toList
     )
   }
-
 
 }
