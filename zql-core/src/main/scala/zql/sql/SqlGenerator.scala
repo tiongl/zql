@@ -25,30 +25,30 @@ class SqlGenerator {
 
   def generate(stmt: Statement, tableName: String): String = {
     val sql = new StringBuilder("SELECT ")
-    sql.append(stmt._selects.map(asSelect(_)).mkString(", "))
+    sql.append(stmt.select.map(asSelect(_)).mkString(", "))
     sql.append(" FROM ")
     sql.append(tableName)
-    if (stmt._where != null) {
+    if (stmt.where != null) {
       sql.append(" WHERE ")
-      sql.append(stmt._where)
+      sql.append(stmt.where)
     }
-    if (stmt._groupBy != null) {
+    if (stmt.groupBy != null) {
       sql.append(" GROUP BY  ")
-      sql.append(stmt._groupBy.mkString(", "))
-      if (stmt._having != null) {
+      sql.append(stmt.groupBy.mkString(", "))
+      if (stmt.having != null) {
         sql.append(" HAVING ")
-        sql.append(stmt._having)
+        sql.append(stmt.having)
       }
     }
-    if (stmt._orderBy != null) {
+    if (stmt.orderBy != null) {
       sql.append(" ORDER BY ")
-      sql.append(stmt._orderBy.map(asOrder(_)).mkString(", "))
+      sql.append(stmt.orderBy.map(asOrder(_)).mkString(", "))
     }
-    if (stmt._limit != null) {
+    if (stmt.limit != null) {
       sql.append(" LIMIT  ")
-      sql.append(stmt._limit._1)
+      sql.append(stmt.limit._1)
       sql.append(", ")
-      sql.append(stmt._limit._2)
+      sql.append(stmt.limit._2)
     }
 
     logger.info("Generated SQL = " + sql)

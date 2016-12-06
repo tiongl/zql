@@ -60,46 +60,63 @@ class Whered(val statement: Statement) extends Groupable
 class WherePart(val statement: Statement) extends Groupable with Orderable with Limitable
 
 class Selected(selects: Seq[Column], table: Table) extends Groupable with Whereable {
-  val statement = new Statement(table, selects)
+  val statement = new Statement().select(selects).from(table)
 }
 
-//
-//class Statement(val table: Table, val selects: Column*) extends WhereClause {
-//  def compile() = table.compile(this)
-//}
+case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
 
-case class Statement(
-  val _from: Table = null,
-  val _selects: Seq[Column] = null,
-  val _where: Condition = null,
-  val _groupBy: Seq[Column] = null,
-  val _orderBy: Seq[OrderSpec] = null,
-  val _limit: (Int, Int) = null,
-  val _having: Condition = null
-) //having
-    extends Compilable {
-  def select(selects: Seq[Column]) =
-    new Statement(_from, selects, _where, _groupBy, _orderBy, _limit, _having)
+  //TODO: Create feature class for this
+  val SELECT = "SELECT"
+  val FROM = "FROM"
+  val WHERE = "WHERE"
+  val GROUPBY = "GROUPBY"
+  val ORDERBY = "ORDERBY"
+  val LIMIT = "LIMIT"
+  val HAVING = "HAVING"
 
-  def from(from: Table) =
-    new Statement(from, _selects, _where, _groupBy, _orderBy, _limit, _having)
+  def newStatement(key: String, value: Any): Statement = {
+    if (!states.contains(key)) newStatement(states + (key -> value))
+    else throw new IllegalArgumentException("Repeating " + key + " in statement")
+  }
 
-  def where(where: Condition) =
-    new Statement(_from, _selects, where, _groupBy, _orderBy, _limit, _having)
+  def newStatement(states: Map[String, Any]) = {
+    new Statement(states)
+  }
 
-  def groupBy(groupBy: Seq[Column]) =
-    new Statement(_from, _selects, _where, groupBy, _orderBy, _limit, _having)
+  def get[T](key: String): T = states.get(key) match {
+    case None => null.asInstanceOf[T]
+    case Some(r) => r.asInstanceOf[T]
+  }
 
-  def orderBy(orderBy: Seq[OrderSpec]) =
-    new Statement(_from, _selects, _where, _groupBy, orderBy, _limit, _having)
+  def select(columns: Seq[Column]) = newStatement(SELECT, columns)
 
-  def limit(limit: (Int, Int)) =
-    new Statement(_from, _selects, _where, _groupBy, _orderBy, limit, _having)
+  def select = get[Seq[Column]](SELECT)
 
-  def having(having: Condition) =
-    new Statement(_from, _selects, _where, _groupBy, _orderBy, _limit, having)
+  def from(from: Table) = newStatement(FROM, from)
 
-  def compile = _from.compile(this)
+  def from = get[Table](FROM)
+
+  def where(where: Condition) = newStatement(WHERE, where)
+
+  def where = get[Condition](WHERE)
+
+  def groupBy(groupBy: Seq[Column]) = newStatement(GROUPBY, groupBy)
+
+  def groupBy = get[Seq[Column]](GROUPBY)
+
+  def orderBy(orderBy: Seq[OrderSpec]) = newStatement(ORDERBY, orderBy)
+
+  def orderBy = get[Seq[OrderSpec]](ORDERBY)
+
+  def limit(limit: (Int, Int)) = newStatement(LIMIT, limit)
+
+  def limit = get[(Int, Int)](LIMIT)
+
+  def having(having: Condition) = newStatement(HAVING, having)
+
+  def having = get[Condition](HAVING)
+
+  def compile = from.compile(this)
 
   def toSql(tableName: String) = new SqlGenerator().generate(this, tableName)
 }

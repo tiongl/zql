@@ -1,0 +1,26 @@
+package zql
+
+import zql.core._
+
+/**
+ * Created by tiong on 12/5/16.
+ */
+package object spark {
+
+  class PartitionStatement(states: Map[String, Any]) extends Statement(states) {
+    val PARTITIONBY = "PARTITION_BY"
+    def partitionBy(column: Seq[Column]) = newStatement(PARTITIONBY, column)
+
+    def partitionBy = states(PARTITIONBY).asInstanceOf[Seq[Column]]
+  }
+
+  class Partitioned(stmt: Statement) extends StatementEnd(stmt)
+
+  class Partitionable(val statement: Statement) extends StatementWrapper {
+    def partitionBy(columns: Column*) = new Partitioned(new PartitionStatement(statement.states).partitionBy(columns))
+  }
+
+  implicit def toPartitionStatement(limit: Limitable): Partitionable = {
+    new Partitionable(limit.statement())
+  }
+}

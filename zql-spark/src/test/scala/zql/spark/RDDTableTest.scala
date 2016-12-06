@@ -16,6 +16,15 @@ class RDDTableTest extends TableTest {
 
   val table = RDDTable[Person]('id, 'firstName, 'lastName, 'age, 'spouseId)(rdd)
 
+  it should "support partition by" in supportPartitionBy
+
+  def supportPartitionBy = {
+    executeAndMatch(
+      table select ('firstName, 'lastName) partitionBy('firstName), //we don't actually support partition by yet
+      data.map(p  => new Row(Array(p.firstName, p.lastName)))
+    )
+  }
+
   override protected def afterAll(): Unit = {
     sc.stop()
   }

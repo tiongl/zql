@@ -85,8 +85,8 @@ abstract class ConditionAccessor[ROW]() extends ColumnAccessor[ROW, Boolean]
 class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[ROW]) extends Compiler[RowBasedTable[Row]] {
 
   def validate(stmt: Statement) = {
-    if (stmt._groupBy != null) {
-      val aggFunctions = stmt._selects.filter(_.isInstanceOf[AggregateFunction[_]])
+    if (stmt.groupBy != null) {
+      val aggFunctions = stmt.select.filter(_.isInstanceOf[AggregateFunction[_]])
       if (aggFunctions.size == 0) {
         throw new IllegalArgumentException("Group by must have at least one aggregation function")
       }
@@ -97,7 +97,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     import zql.core.ExecutionPlan._
     validate(stmt)
 
-    val expandedSelects = stmt._selects.flatMap {
+    val expandedSelects = stmt.select.flatMap {
       case mc: MultiColumn =>
         mc.toColumns(schema)
       case c => Seq(c)
@@ -109,8 +109,8 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     val rowBased = table.data.withOption(option)
     val execPlan = plan("Query") {
       first("Filter the data") {
-        val filteredData = if (stmt._where != null) {
-          val filterAccesor = compileCondition[ROW](stmt._where, schema)
+        val filteredData = if (stmt.where != null) {
+          val filterAccesor = compileCondition[ROW](stmt.where, schema)
           rowBased.withOption(option).filter((row: ROW) => filterAccesor(row))
         } else rowBased
         filteredData
@@ -120,9 +120,9 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
           val selectFunc = (row: ROW) => new Row(selects.map(_(row)).toArray)
           //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
           val groupByIndices = expandedSelects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
-          val groupedProcessData = if (stmt._groupBy != null) {
+          val groupedProcessData = if (stmt.groupBy != null) {
             //make sure group columns is in the expanded selects
-            val groupByNames = stmt._groupBy.map(_.name).toSet
+            val groupByNames = stmt.groupBy.map(_.name).toSet
             val selectNames = expandedSelects.map(_.name).toSet
             if (!groupByNames.subsetOf(selectNames)) {
               throw new IllegalArgumentException("Group by must be present in selects: " + groupByNames.diff(selectNames))
@@ -135,16 +135,16 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
                 }
             }
 
-            stmt._groupBy.map {
+            stmt.groupBy.map {
               gb =>
                 expandedSelects.contains(gb)
             }
-            val groupByAccessors = stmt._groupBy.map(compileColumn[ROW](_, schema))
+            val groupByAccessors = stmt.groupBy.map(compileColumn[ROW](_, schema))
             val groupByFunc = (row: ROW) => groupByAccessors.map(_(row))
             val groupedData = filteredData.groupBy(groupByFunc, selectFunc, groupByIndices).map(_.normalize)
 
-            val havingData = if (stmt._having != null) {
-              val havingExtractor = compileCondition[Row](stmt._having, resultSchema)
+            val havingData = if (stmt.having != null) {
+              val havingExtractor = compileCondition[Row](stmt.having, resultSchema)
               val havingFilter = (row: Row) => havingExtractor(row)
               groupedData.filter(havingFilter)
             } else {
@@ -163,8 +163,8 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
           groupedProcessData
       }.next("Ordering the data") {
         groupedProcessData =>
-          if (stmt._orderBy != null) {
-            val (orderAccessors, ordering) = compileOrdering(stmt._orderBy, resultSchema)
+          if (stmt.orderBy != null) {
+            val (orderAccessors, ordering) = compileOrdering(stmt.orderBy, resultSchema)
             val keyFunc = (row: Row) => orderAccessors.map(_(row))
             groupedProcessData.sortBy(keyFunc, ordering, scala.reflect.classTag[Seq[Any]])
           } else {
@@ -172,8 +172,8 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
           }
       }.next("Limit the data") {
         orderedData =>
-          if (stmt._limit != null) {
-            val (offset, count) = stmt._limit
+          if (stmt.limit != null) {
+            val (offset, count) = stmt.limit
             //NOTE: we skip the following because for spark we can't know the size without trigger computation
             if (!orderedData.isLazy) {
               if (offset >= orderedData.size) {
