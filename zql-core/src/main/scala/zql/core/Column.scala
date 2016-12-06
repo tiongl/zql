@@ -9,6 +9,8 @@ abstract class Column extends Serializable {
 
   def name: Symbol
 
+  override def toString = name.name
+
   def as(name: Symbol) = {
     alias = name
     this
@@ -16,7 +18,7 @@ abstract class Column extends Serializable {
 
   def castToNumeric: NumericColumn = ???
 
-  def getName = if (alias == null) name else alias
+  def getResultName = if (alias == null) name else alias
 
   def ===(other: Column): Condition = new Equals(this, other)
 
@@ -50,20 +52,308 @@ trait NumericColumn extends Column
 //TODO: Improve the implementations of math operations
 object NumericColumn {
 
-  def +(a: Any, b: Any): Any = {
-    a.asInstanceOf[Int] + b.asInstanceOf[Int]
+  def +(a: Any, b: Any): Any = a match {
+    case (c: Double) => b match {
+      case (d: Double) =>
+        c + d
+      case (d: Float) =>
+        c + d
+      case (d: Short) =>
+        c + d
+      case (d: Byte) =>
+        c + d
+      case (d: Int) =>
+        c + d
+      case _ =>
+        throw new IllegalArgumentException("Plus operation on unknonw type " + b.getClass)
+
+    }
+    case (c: Float) => b match {
+      case (d: Double) =>
+        c + d
+      case (d: Float) =>
+        c + d
+      case (d: Short) =>
+        c + d
+      case (d: Byte) =>
+        c + d
+      case (d: Int) =>
+        c + d
+      case _ =>
+        throw new IllegalArgumentException("Plus operation on unknonw type " + b.getClass)
+    }
+    case (c: Short) => b match {
+      case (d: Double) =>
+        c + d
+      case (d: Float) =>
+        c + d
+      case (d: Short) =>
+        c + d
+      case (d: Byte) =>
+        c + d
+      case (d: Int) =>
+        c + d
+      case _ =>
+        throw new IllegalArgumentException("Plus operation on unknonw type " + b.getClass)
+    }
+    case (c: Int) => b match {
+      case (d: Double) =>
+        c + d
+      case (d: Float) =>
+        c + d
+      case (d: Short) =>
+        c + d
+      case (d: Byte) =>
+        c + d
+      case (d: Int) =>
+        c + d
+      case _ =>
+        throw new IllegalArgumentException("Plus operation on unknonw type " + b.getClass)
+    }
+    case (c: Byte) => b match {
+      case (d: Double) =>
+        c + d
+      case (d: Float) =>
+        c + d
+      case (d: Short) =>
+        c + d
+      case (d: Byte) =>
+        c + d
+      case (d: Int) =>
+        c + d
+      case _ =>
+        throw new IllegalArgumentException("Plus operation on unknonw type " + b.getClass)
+    }
+    case _ =>
+      throw new IllegalArgumentException("Plus operation on unknonw type " + a.getClass)
   }
 
-  def -(a: Any, b: Any): Any = {
-    a.asInstanceOf[Int] - b.asInstanceOf[Int]
+  def -(a: Any, b: Any): Any = a match {
+    case (c: Double) => b match {
+      case (d: Double) =>
+        c - d
+      case (d: Float) =>
+        c - d
+      case (d: Short) =>
+        c - d
+      case (d: Byte) =>
+        c - d
+      case (d: Int) =>
+        c - d
+      case _ =>
+        throw new IllegalArgumentException("Minus operation on unknonw type " + b.getClass)
+
+    }
+    case (c: Float) => b match {
+      case (d: Double) =>
+        c - d
+      case (d: Float) =>
+        c - d
+      case (d: Short) =>
+        c - d
+      case (d: Byte) =>
+        c - d
+      case (d: Int) =>
+        c - d
+      case _ =>
+        throw new IllegalArgumentException("Minus operation on unknonw type " + b.getClass)
+    }
+    case (c: Short) => b match {
+      case (d: Double) =>
+        c - d
+      case (d: Float) =>
+        c - d
+      case (d: Short) =>
+        c - d
+      case (d: Byte) =>
+        c - d
+      case (d: Int) =>
+        c - d
+      case _ =>
+        throw new IllegalArgumentException("Minus operation on unknonw type " + b.getClass)
+    }
+    case (c: Int) => b match {
+      case (d: Double) =>
+        c - d
+      case (d: Float) =>
+        c - d
+      case (d: Short) =>
+        c - d
+      case (d: Byte) =>
+        c - d
+      case (d: Int) =>
+        c - d
+      case _ =>
+        throw new IllegalArgumentException("Minus operation on unknonw type " + b.getClass)
+    }
+    case (c: Byte) => b match {
+      case (d: Double) =>
+        c - d
+      case (d: Float) =>
+        c - d
+      case (d: Short) =>
+        c - d
+      case (d: Byte) =>
+        c - d
+      case (d: Int) =>
+        c - d
+      case _ =>
+        throw new IllegalArgumentException("Minus operation on unknonw type " + b.getClass)
+    }
+    case _ =>
+      throw new IllegalArgumentException("Minus operation on unknonw type " + a.getClass)
   }
 
-  def /(a: Any, b: Any): Any = {
-    a.asInstanceOf[Int] / b.asInstanceOf[Int]
+  def /(a: Any, b: Any): Any = a match {
+    case (c: Double) => b match {
+      case (d: Double) =>
+        c / d
+      case (d: Float) =>
+        c / d
+      case (d: Short) =>
+        c / d
+      case (d: Byte) =>
+        c / d
+      case (d: Int) =>
+        c / d
+      case _ =>
+        throw new IllegalArgumentException("Divide operation on unknonw type " + b.getClass)
+
+    }
+    case (c: Float) => b match {
+      case (d: Double) =>
+        c / d
+      case (d: Float) =>
+        c / d
+      case (d: Short) =>
+        c / d
+      case (d: Byte) =>
+        c / d
+      case (d: Int) =>
+        c / d
+      case _ =>
+        throw new IllegalArgumentException("Divide operation on unknonw type " + b.getClass)
+    }
+    case (c: Short) => b match {
+      case (d: Double) =>
+        c / d
+      case (d: Float) =>
+        c / d
+      case (d: Short) =>
+        c / d.toFloat
+      case (d: Byte) =>
+        c / d.toFloat
+      case (d: Int) =>
+        c / d.toFloat
+      case _ =>
+        throw new IllegalArgumentException("Divide operation on unknonw type " + b.getClass)
+    }
+    case (c: Int) => b match {
+      case (d: Double) =>
+        c / d
+      case (d: Float) =>
+        c / d
+      case (d: Short) =>
+        c / d.toFloat
+      case (d: Byte) =>
+        c / d.toFloat
+      case (d: Int) =>
+        c / d.toFloat
+      case _ =>
+        throw new IllegalArgumentException("Divide operation on unknonw type " + b.getClass)
+    }
+    case (c: Byte) => b match {
+      case (d: Double) =>
+        c / d
+      case (d: Float) =>
+        c / d
+      case (d: Short) =>
+        c / d.toFloat
+      case (d: Byte) =>
+        c / d.toFloat
+      case (d: Int) =>
+        c / d.toFloat
+      case _ =>
+        throw new IllegalArgumentException("Divide operation on unknonw type " + b.getClass)
+    }
+    case _ =>
+      throw new IllegalArgumentException("Divide operation on unknonw type " + a.getClass)
   }
 
-  def *(a: Any, b: Any): Any = {
-    a.asInstanceOf[Int] * b.asInstanceOf[Int]
+  def *(a: Any, b: Any): Any = a match {
+    case (c: Double) => b match {
+      case (d: Double) =>
+        c * d
+      case (d: Float) =>
+        c * d
+      case (d: Short) =>
+        c * d
+      case (d: Byte) =>
+        c * d
+      case (d: Int) =>
+        c * d
+      case _ =>
+        throw new IllegalArgumentException("Multiple operation on unknonw type " + b.getClass)
+
+    }
+    case (c: Float) => b match {
+      case (d: Double) =>
+        c * d
+      case (d: Float) =>
+        c * d
+      case (d: Short) =>
+        c * d
+      case (d: Byte) =>
+        c * d
+      case (d: Int) =>
+        c * d
+      case _ =>
+        throw new IllegalArgumentException("Multiple operation on unknonw type " + b.getClass)
+    }
+    case (c: Short) => b match {
+      case (d: Double) =>
+        c * d
+      case (d: Float) =>
+        c * d
+      case (d: Short) =>
+        c * d
+      case (d: Byte) =>
+        c * d
+      case (d: Int) =>
+        c * d
+      case _ =>
+        throw new IllegalArgumentException("Multiple operation on unknonw type " + b.getClass)
+    }
+    case (c: Int) => b match {
+      case (d: Double) =>
+        c * d
+      case (d: Float) =>
+        c * d
+      case (d: Short) =>
+        c * d
+      case (d: Byte) =>
+        c * d
+      case (d: Int) =>
+        c * d
+      case _ =>
+        throw new IllegalArgumentException("Multiple operation on unknonw type " + b.getClass)
+    }
+    case (c: Byte) => b match {
+      case (d: Double) =>
+        c * d
+      case (d: Float) =>
+        c * d
+      case (d: Short) =>
+        c * d
+      case (d: Byte) =>
+        c * d
+      case (d: Int) =>
+        c * d
+      case _ =>
+        throw new IllegalArgumentException("Multiple operation on unknonw type " + b.getClass)
+    }
+    case _ =>
+      throw new IllegalArgumentException("Multiple operation on unknonw type " + a.getClass)
   }
 }
 
@@ -96,23 +386,17 @@ abstract class BinaryCondition(val a: Condition, val b: Condition) extends Condi
 
 /** a composite condition **/
 class AndCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"AND(${a.getName},${b.getName})")
-  // $COVERAGE-ON
+  def name = Symbol(s"(${a} AND ${b})")
   def evaluate(a: Boolean, b: Boolean) = a && b
 }
 
 class OrCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"OR(${a.getName},${b.getName})")
-  // $COVERAGE-ON
+  def name = Symbol(s"(${a} OR ${b})")
   def evaluate(a: Boolean, b: Boolean) = a || b
 }
 
 class NotCondition(val a: TypedColumn[Boolean]) extends Condition(a) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"Not(${a.getName})")
-  // $COVERAGE-ON
+  def name = Symbol(s"NOT(${a})")
   def evaluate(a: Boolean) = !a
 }
 
@@ -121,44 +405,32 @@ abstract class EqualityCondition(val a: Column, val b: Column) extends Condition
 }
 
 class Equals(a: Column, b: Column) extends EqualityCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"Eq(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"${a} == ${b}")
   def evaluate(a: Any, b: Any) = a == b
 }
 
 class NotEquals(a: Column, b: Column) extends EqualityCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"NotEq(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"${a} != ${b}")
   def evaluate(a: Any, b: Any) = a != b
 }
 
 class LessThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"LessThan(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"${a} < ${b}")
   def evaluate(a: Any, b: Any) = Utils.<(a, b)
 }
 
 class LessThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"LessThanEquals(${a.getName},${b.getName})")
-  // $COVERAGE-ON
+  def name = Symbol(s"${a} <= ${b}")
   def evaluate(a: Any, b: Any) = Utils.<=(a, b)
 }
 
 class GreaterThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"GreaterThan(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"${a} > ${b}")
   def evaluate(a: Any, b: Any) = Utils.>(a, b)
 }
 
 class GreaterThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"GreaterThanEquals(${a.getName},${b.getName})")
-  // $COVERAGE-ON
+  def name = Symbol(s"${a} >= ${b}")
   def evaluate(a: Any, b: Any) = Utils.>=(a, b)
 }
 
@@ -167,30 +439,22 @@ abstract class BinaryFunction[T](val a: Column, val b: Column) extends Function[
 }
 
 class Plus(a: Column, b: Column) extends BinaryFunction[Any](a, b) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"Plus(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"(${a} + ${b})")
   def evaluate(a: Any, b: Any) = NumericColumn.+(a, b)
 }
 
 class Minus(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"Minus(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"(${a} - ${b})")
   def evaluate(a: Any, b: Any) = NumericColumn.-(a, b)
 }
 
 class Multiply(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"Multiply(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"(${a} * ${b})")
   def evaluate(a: Any, b: Any) = NumericColumn.*(a, b)
 }
 
 class Divide(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"Divide(${a.getName},${b.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"(${a} / ${b})")
   def evaluate(a: Any, b: Any) = NumericColumn./(a, b)
 }
 
@@ -228,7 +492,7 @@ class UntypedColumn(n: Symbol) extends DataColumn[Any](n) {
 /* Literal columns */
 /*******************/
 abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] {
-  def name = Symbol(value.toString)
+  def name = Symbol(s"${value}")
   def requiredColumns = Set()
 }
 
@@ -244,7 +508,9 @@ class FloatLiteral(value: Float) extends NumericLiteral[Float](value)
 
 class DoubleLiteral(value: Double) extends NumericLiteral[Double](value)
 
-class StringLiteral(value: String) extends LiteralColumn[String](value)
+class StringLiteral(value: String) extends LiteralColumn[String](value) {
+  override def name = Symbol(s"'${value}'")
+}
 
 class BooleanLiteral(value: Boolean) extends LiteralColumn[Boolean](value)
 
@@ -253,11 +519,9 @@ abstract class MultiColumn extends Column {
 }
 
 class AllColumn extends MultiColumn {
-  // $COVERAGE-OFF$
   def requiredColumns = Set()
 
   def name = Symbol("*")
-  // $COVERAGE-ON$
 
   def toColumns(schema: RowBasedSchema[_]) = {
     //TODO: make compilation to use MultiColumn interface
@@ -277,6 +541,7 @@ abstract class AggregateFunction[T](cols: Column*) extends Function[T](cols: _*)
 
 abstract class Aggregatable[T <: Any] {
   def aggregate(agg: Aggregatable[T]): Aggregatable[T]
+
   def value: T
 }
 
@@ -289,9 +554,8 @@ case class Summable(val value: Number) extends Aggregatable[Number] {
 }
 
 class Sum(val col: NumericColumn) extends AggregateFunction[Number](col) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"SUM(${col.getName})")
-  // $COVERAGE-ON$
+  def name = Symbol(s"SUM(${col})")
+
   def createAggregatable(v1: Seq[Any]) = new Summable(v1(0).asInstanceOf[Int])
 }
 
@@ -304,8 +568,7 @@ case class Countable(val value: Number) extends Aggregatable[Number] {
 }
 
 class Count(val col: Column) extends AggregateFunction[Number](col) {
-  // $COVERAGE-OFF$
-  def name = Symbol(s"COUNT(${col.getName}")
-  // $COVERAGE-ON
+  def name = Symbol(s"COUNT(${col})")
+
   def createAggregatable(v1: Seq[Any]) = new Countable(1)
 }

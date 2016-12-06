@@ -1,5 +1,7 @@
 package zql.core
 
+import zql.sql.SqlGenerator
+
 import scala.collection.mutable
 
 trait Executable[+T] {
@@ -32,7 +34,7 @@ trait Limitable extends StatementWrapper {
 }
 
 trait Orderable extends Limitable {
-  def orderBy(columns: OrderSpec*) = statement.orderBy(columns)
+  def orderBy(columns: OrderSpec*) = new Ordered(statement.orderBy(columns))
 }
 
 class Ordered(val statement: Statement) extends Limitable
@@ -98,5 +100,7 @@ case class Statement(
     new Statement(_from, _selects, _where, _groupBy, _orderBy, _limit, having)
 
   def compile = _from.compile(this)
+
+  def toSql(tableName: String) = new SqlGenerator().generate(this, tableName)
 }
 

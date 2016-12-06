@@ -7,6 +7,8 @@ class FuncSchemaTest extends TableTest {
     ('id, _.id),
     ('firstName, _.firstName),
     ('lastName, _.lastName),
-    ('age, _.age)
+    ('age, _.age),
+    ('spoudId, _.spouseId)
+
   )(data)
 }

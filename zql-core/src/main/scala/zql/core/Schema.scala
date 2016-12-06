@@ -14,3 +14,5 @@ abstract class Schema {
 }
 
 abstract class ColumnDef(val name: Symbol) extends Serializable
+
+class SimpleColumnDef(name: Symbol) extends ColumnDef(name)
