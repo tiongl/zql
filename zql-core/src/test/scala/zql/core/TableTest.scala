@@ -10,30 +10,46 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def executeAndMatch(statement: Compilable, rows: List[Row]) = {
     val results = statement.compile.execute().collectAsList().map(r => normalizeRow(r))
+    println("Results = " + results)
     results should be(rows)
   }
 
   def normalizeRow(row: Any): Row = row.asInstanceOf[Row]
 
+  //Operations
   it should "Support all operation" in supportAllOperations
+
+  //Selects
   it should "support select with math operations" in supportSelectWithMathOperations
   it should "support select literal" in supportSelectLiteral
   it should "support select all" in supportSelectAll
   it should "support simple data column" in supportSelectDataColumn
   it should "support simple filtering" in supportSimpleFiltering
+  it should "support select count" in supportSelectCount
+  it should "support select count with groupby" in supportSelectCountWithGroupby
+  it should "support select distinct" in supportSelectDistinct
+  it should "support select count distinct" in supportSelectCountDistinct
+
+
+
+  //Filtering
   it should "support filtering with aggregation" in supportFilteringWithAggregation
   it should "support filtering boolean logic" in supportFilteringWithBooleanLogic
   it should "support not filtering" in supportNotFilter
+
+  //Groupby
   it should "support detect invlid aggregation" in supportDetectInvalidAggregation
   it should "validate groupby must have aggregate function" in supportDetectInvalidAggregation2
   it should "support simple groupby function" in supportSimpleGroupFunction
   it should "support groupby having " in supportGroupbyHaving
+
+  //Ordering
   it should "support select ordering" in supportSelectOrdering
   it should "support select ordering desc" in supportSelectOrderingDesc
+
+  //Limit
   it should "support offset, limit" in supportSelectLimitOffset
   it should "support limit" in supportSelectLimit
-  it should "support select count" in supportSelectCount
-  it should "support select count with groupby" in supportSelectCountWithGroupby
 
   def supportAllOperations = {
     val one = new IntLiteral(1)
@@ -218,6 +234,20 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
           (a: Row, b: Row) => a.aggregate(b, Array(1))
         )
       }.map(_.normalize).filter(_.data(1).asInstanceOf[Int] > 10).toList
+    )
+  }
+
+  def supportSelectDistinct = {
+    executeAndMatch(
+      table selectDistinct ('firstName) orderBy ('firstName),
+      data.map(_.firstName).distinct.sorted.map(d => new Row(Array(d)))
+    )
+  }
+
+  def supportSelectCountDistinct = {
+    executeAndMatch(
+      table select countDistinct('firstName),
+      List(new Row(Array(data.map(_.firstName).distinct.size)))
     )
   }
 

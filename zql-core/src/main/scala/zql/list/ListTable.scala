@@ -61,4 +61,6 @@ class ListData[ROW](val list: List[ROW], option: CompileOption = new CompileOpti
   override def isLazy = false
 
   override def withOption(opt: CompileOption): RowBasedData[ROW] = new ListData(list, opt)
+
+  override def distinct() = list.distinct
 }

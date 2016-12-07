@@ -8,10 +8,10 @@ import scala.reflect.ClassTag
  * Created by tiong on 6/2/16.
  */
 
-abstract class Table {
-  def schema: Schema
+abstract class Table extends Selectable{
+  val statement = new Statement().from(this)
 
-  def select(selects: Column*): Selected = new Selected(selects, this)
+  def schema: Schema
 
   def compile(stmt: Statement): Executable[Table]
 
@@ -49,7 +49,9 @@ case class Row(val data: Array[Any]) {
     this
   }
 
-  override def equals(obj: scala.Any): Boolean = obj.asInstanceOf[Row].data.sameElements(data)
+  override lazy val hashCode = data.map(_.hashCode()).sum
+
+  override def equals(obj: scala.Any): Boolean = if (obj==null) false else obj.asInstanceOf[Row].data.sameElements(data)
 
   override def toString = data.mkString(",")
 }

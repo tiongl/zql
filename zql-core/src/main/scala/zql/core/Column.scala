@@ -546,29 +546,38 @@ abstract class Aggregatable[T <: Any] {
 }
 
 case class Summable(val value: Number) extends Aggregatable[Number] {
-  override def aggregate(agg: Aggregatable[Number]) = {
-    new Summable(value.intValue() + agg.asInstanceOf[Summable].value.intValue)
-  }
+  override def aggregate(agg: Aggregatable[Number]) = new Summable(NumericColumn.+(value, agg.value).asInstanceOf[Number])
 
   override def toString = value.toString
 }
 
 class Sum(val col: NumericColumn) extends AggregateFunction[Number](col) {
   def name = Symbol(s"SUM(${col})")
-
   def createAggregatable(v1: Seq[Any]) = new Summable(v1(0).asInstanceOf[Int])
 }
 
-case class Countable(val value: Number) extends Aggregatable[Number] {
-  override def aggregate(agg: Aggregatable[Number]) = {
-    new Countable(value.intValue() + agg.asInstanceOf[Countable].value.intValue)
-  }
-
+case class Countable(val value: Int) extends Aggregatable[Int] {
+  override def aggregate(agg: Aggregatable[Int]) = new Countable(value + agg.value.asInstanceOf[Int])
   override def toString = value.toString
 }
 
-class Count(val col: Column) extends AggregateFunction[Number](col) {
+class Count(val col: Column) extends AggregateFunction[Int](col) {
   def name = Symbol(s"COUNT(${col})")
-
   def createAggregatable(v1: Seq[Any]) = new Countable(1)
 }
+
+case class DistinctCountable(val rows: Set[Row]) extends Aggregatable[Int] {
+  def value = rows.size
+  override def aggregate(agg: Aggregatable[Int]) = new DistinctCountable(rows ++ agg.asInstanceOf[DistinctCountable].rows)
+  override def toString = value.toString
+}
+
+class CountDistinct(cols: Column*) extends AggregateFunction[Int](cols: _*) {
+  def name = Symbol(s"COUNT(DISTINC ${cols.mkString(",")})")
+  def createAggregatable(v1: Seq[Any]) = new DistinctCountable(Set(new Row(v1.toArray)))
+}
+
+
+//class Distinct(cols: Seq[Column]) extends CompositeColumn[Any](cols: _*) {
+//  def name = Symbol("DISTINCT " + cols.mkString(","))
+//}

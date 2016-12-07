@@ -41,6 +41,7 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
 
   override def withOption(option: CompileOption): RowBasedData[T] = new RDDData[T](rdd, option)
 
+  override def distinct(): RowBasedData[T] = rdd.distinct()
 }
 
 class RDDTable[ROW: ClassTag](schema: RowBasedSchema[ROW], rdd: RDD[ROW]) extends RowBasedTable(schema) {

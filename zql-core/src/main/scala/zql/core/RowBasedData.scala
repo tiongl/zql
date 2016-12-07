@@ -17,6 +17,7 @@ trait RowBasedData[ROW] {
   def size: Int
   def asList: List[ROW]
   def isLazy: Boolean
+  def distinct(): RowBasedData[ROW]
 }
 
 class RowBasedSchema[ROW](val allColumns: ColumnDef*) extends Schema
@@ -84,25 +85,51 @@ abstract class ConditionAccessor[ROW]() extends ColumnAccessor[ROW, Boolean]
 
 class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[ROW]) extends Compiler[RowBasedTable[Row]] {
 
-  def validate(stmt: Statement) = {
-    if (stmt.groupBy != null) {
-      val aggFunctions = stmt.select.filter(_.isInstanceOf[AggregateFunction[_]])
-      if (aggFunctions.size == 0) {
-        throw new IllegalArgumentException("Group by must have at least one aggregation function")
-      }
-    }
-  }
-
-  def compile(stmt: Statement, option: CompileOption): Executable[RowBasedTable[Row]] = {
-    import zql.core.ExecutionPlan._
-    validate(stmt)
-
+  case class StatementInfo(stmt: Statement)
+  {
     val expandedSelects = stmt.select.flatMap {
       case mc: MultiColumn =>
         mc.toColumns(schema)
       case c => Seq(c)
     }
-    val newColumns = expandedSelects.zipWithIndex.map {
+
+    val groupByIndices = expandedSelects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
+  }
+  def validate(stmt: Statement): StatementInfo = {
+    val stmtInfo = new StatementInfo(stmt)
+    if (stmt.groupBy != null) {
+      val aggFunctions = stmt.select.filter(_.isInstanceOf[AggregateFunction[_]])
+      if (aggFunctions.size == 0) {
+        throw new IllegalArgumentException("Group by must have at least one aggregation function")
+      }
+
+      //make sure groupby is part of selects
+      //TODO: determine whether this is really needed
+      val groupByNames = stmt.groupBy.map(_.name).toSet
+      val selectNames = stmtInfo.expandedSelects.map(_.name).toSet
+      if (!groupByNames.subsetOf(selectNames)) {
+        throw new IllegalArgumentException("Group by must be present in selects: " + groupByNames.diff(selectNames))
+      }
+      //make sure all are aggregation function
+      stmtInfo.expandedSelects.map {
+        col =>
+          if (!groupByNames.contains(col.name) && !col.isInstanceOf[AggregateFunction[_]]) {
+            throw new IllegalArgumentException("Select must be aggregate function if it is not group by")
+          }
+      }
+    } else if (stmtInfo.groupByIndices.size > 0) {
+      if (stmtInfo.expandedSelects.size > stmtInfo.groupByIndices.size) {
+        throw new IllegalArgumentException("All select must be aggregate function (or use first() udf)")
+      }
+    }
+    stmtInfo
+  }
+
+  def compile(stmt: Statement, option: CompileOption): Executable[RowBasedTable[Row]] = {
+    import zql.core.ExecutionPlan._
+    val stmtInfo = validate(stmt)
+
+    val newColumns = stmtInfo.expandedSelects.zipWithIndex.map {
       case (col, index) => new RowColumnDef(col.getResultName, index)
     }
     val resultSchema = new RowBasedSchema[Row](newColumns: _*)
@@ -116,32 +143,15 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
         filteredData
       }.next("Grouping the data") {
         filteredData =>
-          val selects = expandedSelects.map(c => compileColumn[ROW](c, schema))
+          val selects = stmtInfo.expandedSelects.map(c => compileColumn[ROW](c, schema))
           val selectFunc = (row: ROW) => new Row(selects.map(_(row)).toArray)
           //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
-          val groupByIndices = expandedSelects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
+
           val groupedProcessData = if (stmt.groupBy != null) {
             //make sure group columns is in the expanded selects
-            val groupByNames = stmt.groupBy.map(_.name).toSet
-            val selectNames = expandedSelects.map(_.name).toSet
-            if (!groupByNames.subsetOf(selectNames)) {
-              throw new IllegalArgumentException("Group by must be present in selects: " + groupByNames.diff(selectNames))
-            }
-            //make sure all are aggregation function
-            expandedSelects.map {
-              col =>
-                if (!groupByNames.contains(col.name) && !col.isInstanceOf[AggregateFunction[_]]) {
-                  throw new IllegalArgumentException("Select must be aggregate function if it is not group by")
-                }
-            }
-
-            stmt.groupBy.map {
-              gb =>
-                expandedSelects.contains(gb)
-            }
             val groupByAccessors = stmt.groupBy.map(compileColumn[ROW](_, schema))
             val groupByFunc = (row: ROW) => groupByAccessors.map(_(row))
-            val groupedData = filteredData.groupBy(groupByFunc, selectFunc, groupByIndices).map(_.normalize)
+            val groupedData = filteredData.groupBy(groupByFunc, selectFunc, stmtInfo.groupByIndices).map(_.normalize)
 
             val havingData = if (stmt.having != null) {
               val havingExtractor = compileCondition[Row](stmt.having, resultSchema)
@@ -151,16 +161,19 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
               groupedData
             }
             havingData
-          } else if (groupByIndices.size > 0) { //this will trigger group by all
-            if (expandedSelects.size > groupByIndices.size) {
-              throw new IllegalArgumentException("All select must be aggregate function (or use first() udf)")
-            }
+          } else if (stmtInfo.groupByIndices.size > 0) { //this will trigger group by all
             val selected = filteredData.select(selectFunc)
-            selected.reduce((a: Row, b: Row) => a.aggregate(b, groupByIndices)).map(_.normalize)
+            selected.reduce((a: Row, b: Row) => a.aggregate(b, stmtInfo.groupByIndices)).map(_.normalize)
           } else {
             filteredData.map { selectFunc }
           }
           groupedProcessData
+      }.next("Distinct"){
+        groupedProcessData =>
+          if (stmt.isDistinct()){
+            groupedProcessData.distinct()
+          } else groupedProcessData
+
       }.next("Ordering the data") {
         groupedProcessData =>
           if (stmt.orderBy != null) {

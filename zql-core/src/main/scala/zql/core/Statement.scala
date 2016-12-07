@@ -57,10 +57,11 @@ trait Whereable extends StatementWrapper {
 
 class Whered(val statement: Statement) extends Groupable
 
-class WherePart(val statement: Statement) extends Groupable with Orderable with Limitable
+class Selected(val statement: Statement) extends Groupable with Whereable
 
-class Selected(selects: Seq[Column], table: Table) extends Groupable with Whereable {
-  val statement = new Statement().select(selects).from(table)
+trait Selectable extends StatementWrapper {
+  def select(selects: Column*) = new Selected(statement().select(selects))
+  def selectDistinct(selects: Column*) = new Selected(statement().select(selects).distinct())
 }
 
 case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
@@ -73,6 +74,7 @@ case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
   val ORDERBY = "ORDERBY"
   val LIMIT = "LIMIT"
   val HAVING = "HAVING"
+  val DISTINCT = "DISTINCT"
 
   def newStatement(key: String, value: Any): Statement = {
     if (!states.contains(key)) newStatement(states + (key -> value))
@@ -115,6 +117,10 @@ case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
   def having(having: Condition) = newStatement(HAVING, having)
 
   def having = get[Condition](HAVING)
+
+  def distinct() = newStatement(DISTINCT, true)
+
+  def isDistinct() = get[Boolean](DISTINCT)
 
   def compile = from.compile(this)
 

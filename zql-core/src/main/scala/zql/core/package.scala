@@ -28,6 +28,9 @@ package object core {
 
   implicit def toNumeric(col: UntypedColumn): NumericColumn = new NumericDataColumn(col.name)
 
+  //purposely not support distinct this way as implementation is complicated
+//  implicit def distinct(cols: Column*): Distinct = new Distinct(cols)
+
   def sum(col: UntypedColumn): Sum = sum(new NumericDataColumn(col.name)) //upgrade to numeric column
 
   def sum(col: NumericColumn): Sum = new Sum(col)
@@ -43,6 +46,10 @@ package object core {
 
   def count(col: Column) = new Count(col)
 
+  def countDistinct(cols: Column*) = new CountDistinct(cols: _*)
+
+
+  //Column definitions
   implicit def symToReflectionColumnDef[ROW: ClassTag](sym: Symbol): ReflectionColumnDef[ROW] = {
     new ReflectionColumnDef[ROW](sym)
   }
