@@ -44,9 +44,10 @@ class SparkSqlTableTest extends TableTest {
     try {
       super.supportDetectInvalidAggregation
     } catch {
-      case e: org.apache.spark.sql.AnalysisException =>
+      case ae: org.apache.spark.sql.AnalysisException =>
         //do nothing
         assert(true)
+      case e => throw e
     }
   }
 
@@ -58,6 +59,17 @@ class SparkSqlTableTest extends TableTest {
       case e: org.apache.spark.sql.AnalysisException =>
         //do nothing
         assert(true)
+      case e => throw e
+    }
+  }
+
+  override def supportDetectBadSubquery = {
+    try {
+      super.supportDetectBadSubquery
+    } catch {
+      case ae: org.apache.spark.sql.AnalysisException =>
+        assert(true)
+      case e => throw e
     }
   }
   override protected def afterAll(): Unit = {

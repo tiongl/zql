@@ -1,6 +1,7 @@
 package zql.core
 
 import java.lang.reflect.Field
+import java.util.UUID
 
 import scala.reflect.ClassTag
 
@@ -8,10 +9,11 @@ import scala.reflect.ClassTag
  * Created by tiong on 6/2/16.
  */
 
-abstract class Table extends Selectable{
-  val statement = new Statement().from(this)
+abstract class Table {
 
   def schema: Schema
+
+  def name: String
 
   def compile(stmt: Statement): Executable[Table]
 
@@ -51,7 +53,7 @@ case class Row(val data: Array[Any]) {
 
   override lazy val hashCode = data.map(_.hashCode()).sum
 
-  override def equals(obj: scala.Any): Boolean = if (obj==null) false else obj.asInstanceOf[Row].data.sameElements(data)
+  override def equals(obj: scala.Any): Boolean = if (obj == null) false else obj.asInstanceOf[Row].data.sameElements(data)
 
   override def toString = data.mkString(",")
 }

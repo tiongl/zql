@@ -10,16 +10,18 @@ class DslTest extends FlatSpec with Matchers with PersonExample {
   "Here are all the supported syntax for the dsl" should "just compile" in {
 
     //all the possible selects
-    table select (*)
-    table select ('firstName, 'lastName, "Test") //simple select
-    table select ('firstName, sum('age)) //select with UDF
-    table select ('firstName) where ('firstName === 'lastName) //select with condition
-    table select ('firstName) groupBy ('firstName, 'lastName) //select with group by
-    table select ('firstName) orderBy ('firstName) //select with order by
-    table select ('firstName) limit (1, 10)
+    select(*) from table
+    select('firstName, 'lastName, "Test") from table //simple select
+    select('firstName, sum('age)) from table //select with UDF
+    select('firstName) from table where ('firstName === 'lastName) //select with condition
+    select('firstName) from table groupBy ('firstName, 'lastName) //select with group by
+    select('firstName) from table orderBy ('firstName) //select with order by
+    select('firstName) from table limit (1, 10)
+    selectDistinct('firstName) from table
+    select(countDistinct('firstName)) from table
 
     //all the where
-    val wherePart = table select ('firstName) where ('firstName === 'lastName) //select with condition
+    val wherePart = select('firstName) from table where ('firstName === 'lastName) //select with condition
     wherePart groupBy ('firstName)
     wherePart orderBy ('firstName)
     wherePart limit (1, 10)
@@ -31,7 +33,7 @@ class DslTest extends FlatSpec with Matchers with PersonExample {
     groupPart limit (1, 10)
 
     //orderby
-    val orderByPart = table select ('firstName) orderBy ('firstName) //select with order by
+    val orderByPart = select('firstName) from table orderBy ('firstName) //select with order by
     orderByPart limit (1, 10)
 
     //all supported condition
@@ -41,6 +43,12 @@ class DslTest extends FlatSpec with Matchers with PersonExample {
     //functions
     NOT('age)
     sum('age)
+    count('age)
+    countDistinct('age)
+
+    //subquery
+    select(select(1)) from table
+    select(*) from (select(*) from table)
 
   }
 }

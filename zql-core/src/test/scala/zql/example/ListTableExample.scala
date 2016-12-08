@@ -21,17 +21,17 @@ object ListTableExample {
     val listTable = ListTable[Person]('id, 'firstName, 'lastName, 'age)(data)
 
     /** Example 1 **/
-    val statement1 = listTable select (*) where ('firstName === "John") limit (5) //pick first 5 johns
+    val statement1 = select(*) from listTable where ('firstName === "John") limit (5) //pick first 5 johns
 
     val resultTable1 = statement1.compile.execute()
 
     /** Example 2 **/
-    val statement2 = resultTable1 select ('firstName, 'age) //select the firstname, age column
+    val statement2 = select('firstName, 'age) from resultTable1 //select the firstname, age column
 
     val resultTable2 = statement2.compile.execute()
 
     /** Example 3 **/
-    val statement3 = resultTable2 select (sum('age)) //sum the age
+    val statement3 = select(sum('age)) from resultTable2 //sum the age
 
     val resultTable3 = statement3.compile.execute()
 

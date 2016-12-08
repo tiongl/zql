@@ -20,8 +20,8 @@ class RDDTableTest extends TableTest {
 
   def supportPartitionBy = {
     executeAndMatch(
-      table select ('firstName, 'lastName) partitionBy('firstName), //we don't actually support partition by yet
-      data.map(p  => new Row(Array(p.firstName, p.lastName)))
+      select('firstName, 'lastName) from table partitionBy ('firstName), //we don't actually support partition by yet
+      data.map(p => new Row(Array(p.firstName, p.lastName)))
     )
   }
 

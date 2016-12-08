@@ -28,8 +28,16 @@ package object core {
 
   implicit def toNumeric(col: UntypedColumn): NumericColumn = new NumericDataColumn(col.name)
 
+  implicit def statmentToColumn(stmt: StatementWrapper): Column = new SubSelect(stmt)
+
+  implicit def select(cols: Column*) = new Selected(false, cols: _*)
+
+  implicit def selectDistinct(cols: Column*) = new Selected(true, cols: _*)
+
+  implicit def statementAsTable(stmt: StatementWrapper): Table = stmt.statement().compile.execute()
+
   //purposely not support distinct this way as implementation is complicated
-//  implicit def distinct(cols: Column*): Distinct = new Distinct(cols)
+  //  implicit def distinct(cols: Column*): Distinct = new Distinct(cols)
 
   def sum(col: UntypedColumn): Sum = sum(new NumericDataColumn(col.name)) //upgrade to numeric column
 
@@ -47,7 +55,6 @@ package object core {
   def count(col: Column) = new Count(col)
 
   def countDistinct(cols: Column*) = new CountDistinct(cols: _*)
-
 
   //Column definitions
   implicit def symToReflectionColumnDef[ROW: ClassTag](sym: Symbol): ReflectionColumnDef[ROW] = {

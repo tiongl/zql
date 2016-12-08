@@ -1,10 +1,13 @@
 package zql.list
 
+import java.util.UUID
+
 import zql.core._
 import zql.core.util.Utils
 import scala.reflect.ClassTag
 
 class ListTable[ROW: ClassTag](schema: RowBasedSchema[ROW], list: List[ROW]) extends RowBasedTable[ROW](schema) {
+  val name = { getClass.getSimpleName + "[" + reflect.classTag[ROW].runtimeClass.getSimpleName + "]-" + UUID.randomUUID() }
 
   val data = new ListData(list)
 

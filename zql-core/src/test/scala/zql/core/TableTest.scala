@@ -11,6 +11,8 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   def executeAndMatch(statement: Compilable, rows: List[Row]) = {
     val results = statement.compile.execute().collectAsList().map(r => normalizeRow(r))
     println("Results = " + results)
+    //    println("rows = " + rows + rows.map(_.getClass))
+
     results should be(rows)
   }
 
@@ -29,8 +31,6 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   it should "support select count with groupby" in supportSelectCountWithGroupby
   it should "support select distinct" in supportSelectDistinct
   it should "support select count distinct" in supportSelectCountDistinct
-
-
 
   //Filtering
   it should "support filtering with aggregation" in supportFilteringWithAggregation
@@ -51,46 +51,51 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   it should "support offset, limit" in supportSelectLimitOffset
   it should "support limit" in supportSelectLimit
 
+  //sub query
+  it should "support select subquery" in supportSelectSubquery
+  it should "support detect invalid subquery" in supportDetectBadSubquery
+  it should "support from subquery" in supportFromSubquery
+
   def supportAllOperations = {
     val one = new IntLiteral(1)
     val str = new StringLiteral("test")
     executeAndMatch(
       //TODO: string + is not working
-      table select (one + 1, one - 1, one * 2, one / 2),
+      select(one + 1, one - 1, one * 2, one / 2) from table,
       data.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1 / 2.toFloat)))
     )
 
     //equality
     executeAndMatch(
-      table select (one > 1, one > 0, one > -1, one >= 1, one >= 0, one >= -1, one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1),
+      select(one > 1, one > 0, one > -1, one >= 1, one >= 0, one >= -1, one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1) from table,
       data.map(p => new Row(Array(1 > 1, 1 > 0, 1 > -1, 1 >= 1, 1 >= 0, 1 >= -1, 1 == 1, 1 == 0, 1 == -1, 1 != 1, 1 != 0, 1 != -1, 1 < 1, 1 < 0, 1 < -1, 1 <= 1, 1 <= 0, 1 <= -1)))
     )
   }
 
   def supportSelectWithMathOperations = {
     executeAndMatch(
-      table select (1 + 1, 'firstName, 'age + 1),
+      select(1 + 1, 'firstName, 'age + 1) from table,
       data.map(p => new Row(Array(2, p.firstName, p.age + 1))).toList
     )
   }
 
   def supportSelectLiteral = {
     executeAndMatch(
-      table select (1, "test", true),
+      select(1, "test", true) from table,
       data.map(p => new Row(Array(1, "test", true))).toList
     )
   }
 
   def supportSelectAll = {
     executeAndMatch(
-      table select (*),
+      select(*) from table,
       data.map(p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))).toList
     )
   }
 
   def supportSelectDataColumn = {
     executeAndMatch(
-      table select ('firstName, 'lastName),
+      select('firstName, 'lastName) from table,
       data.map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
@@ -98,7 +103,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   def supportDetectInvalidAggregation = {
     try {
       executeAndMatch(
-        table select ('firstName, 'lastName, sum('age)),
+        select('firstName, 'lastName, sum('age)) from table,
         List()
       )
       throw new Exception("Must detect invalid aggregation statement")
@@ -110,35 +115,35 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSimpleFiltering = {
     executeAndMatch(
-      table select ('firstName, 'lastName) where ('firstName === "John"),
+      select('firstName, 'lastName) from table where ('firstName === "John"),
       data.filter(_.firstName == "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   def supportFilteringWithAggregation = {
     executeAndMatch(
-      table select (sum('age)) where ('firstName === "John"),
+      select(sum('age)) from table where ('firstName === "John"),
       List(new Row(Array(data.filter(_.firstName == "John").map(_.age).sum)))
     )
   }
 
   def supportFilteringWithBooleanLogic = {
     executeAndMatch(
-      table select ('firstName, 'lastName) where (('firstName === "John" and 'lastName === "Smith") or ('lastName === "Doe")),
+      select('firstName, 'lastName) from table where (('firstName === "John" and 'lastName === "Smith") or ('lastName === "Doe")),
       data.filter(p => (p.firstName == "John" && p.lastName == "Smith") || p.lastName == "Doe").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   def supportNotFilter = {
     executeAndMatch(
-      table select ('firstName, 'lastName) where (NOT('firstName === "John")),
+      select('firstName, 'lastName) from table where (NOT('firstName === "John")),
       data.filter(p => p.firstName != "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   def supportDetectInvalidAggregation2 = {
     try {
-      val stmt = table select ('firstName, 'lastName) groupBy ('firstName)
+      val stmt = select('firstName, 'lastName) from table groupBy ('firstName)
       stmt.compile
       throw new Exception("Groupby without aggregate function must fail")
 
@@ -150,7 +155,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSimpleGroupFunction = {
     executeAndMatch(
-      table select ('firstName, sum('age)) groupBy ('firstName) orderBy ('firstName), {
+      select('firstName, sum('age)) from table groupBy ('firstName) orderBy ('firstName), {
         //because some aggregation system (spark) has unordered result, we have to use order by here
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](
@@ -165,7 +170,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportGroupbyHaving = {
     executeAndMatch(
-      table select ('firstName, sum('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
+      select('firstName, sum('age) as 'ageSum) from table groupBy ('firstName) having ('ageSum > 10), {
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](
           data,
@@ -179,7 +184,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSelectOrdering = {
     executeAndMatch(
-      table select (*) orderBy ('firstName),
+      select(*) from table orderBy ('firstName),
       data.sortBy(_.firstName).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
       )
@@ -188,7 +193,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSelectOrderingDesc = {
     executeAndMatch(
-      table select (*) orderBy ('firstName desc),
+      select(*) from table orderBy ('firstName desc),
       data.sortBy(_.firstName)(Ordering.String.reverse).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
       )
@@ -197,7 +202,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSelectLimitOffset = {
     executeAndMatch(
-      table select (*) limit (1, 3),
+      select(*) from table limit (1, 3),
       data.slice(1, 4).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
       )
@@ -206,7 +211,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSelectLimit = {
     executeAndMatch(
-      table select (*) limit (3),
+      select(*) from table limit (3),
       data.slice(0, 3).map(
         p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
       )
@@ -218,14 +223,14 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   /**************/
   def supportSelectCount = {
     executeAndMatch(
-      table select (count(*) as 'myCount),
+      select(count(*) as 'myCount) from table,
       List(new Row(Array(table.collectAsList().length)))
     )
   }
 
   def supportSelectCountWithGroupby = {
     executeAndMatch(
-      table select ('firstName, count('age) as 'ageSum) groupBy ('firstName) having ('ageSum > 10), {
+      select('firstName, count('age) as 'ageSum) from table groupBy ('firstName) having ('ageSum > 10), {
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](
           data,
@@ -239,16 +244,44 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSelectDistinct = {
     executeAndMatch(
-      table selectDistinct ('firstName) orderBy ('firstName),
+      selectDistinct('firstName) from table orderBy ('firstName),
       data.map(_.firstName).distinct.sorted.map(d => new Row(Array(d)))
     )
   }
 
   def supportSelectCountDistinct = {
     executeAndMatch(
-      table select countDistinct('firstName),
+      select(countDistinct('firstName)) from table,
       List(new Row(Array(data.map(_.firstName).distinct.size)))
     )
+  }
+
+  def supportSelectSubquery = {
+    executeAndMatch(
+      select(select(1)) from table,
+      data.map(p => new Row(Array(1))).toList
+    )
+  }
+
+  def supportFromSubquery = {
+    executeAndMatch(
+      select(*) from (select(*) from table),
+      data.map(p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))).toList
+    )
+  }
+
+  def supportDetectBadSubquery = {
+    try {
+      executeAndMatch(
+        select(select(1, 2)) from table,
+        data.map(p => new Row(Array(1))).toList
+      )
+      throw new Exception()
+    } catch {
+      case ie: IllegalArgumentException =>
+        assert(true)
+      case e => throw e
+    }
   }
 
 }

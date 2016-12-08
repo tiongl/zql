@@ -573,10 +573,14 @@ case class DistinctCountable(val rows: Set[Row]) extends Aggregatable[Int] {
 }
 
 class CountDistinct(cols: Column*) extends AggregateFunction[Int](cols: _*) {
-  def name = Symbol(s"COUNT(DISTINC ${cols.mkString(",")})")
+  def name = Symbol(s"COUNT(DISTINCT ${cols.mkString(",")})")
   def createAggregatable(v1: Seq[Any]) = new DistinctCountable(Set(new Row(v1.toArray)))
 }
 
+class SubSelect(val statement: StatementWrapper) extends Column {
+  override def name: Symbol = Symbol("(" + statement.statement().toSql() + ")")
+  override def requiredColumns: Set[Symbol] = ???
+}
 
 //class Distinct(cols: Seq[Column]) extends CompositeColumn[Any](cols: _*) {
 //  def name = Symbol("DISTINCT " + cols.mkString(","))

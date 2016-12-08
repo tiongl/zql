@@ -23,14 +23,16 @@ class SqlGenerator {
     }
   }
 
-  def generate(stmt: Statement, tableName: String): String = {
+  def generate(stmt: Statement): String = {
     val sql = new StringBuilder("SELECT ")
-    if (stmt.isDistinct()){
+    if (stmt.isDistinct()) {
       sql.append("DISTINCT ")
     }
     sql.append(stmt.select.map(asSelect(_)).mkString(", "))
-    sql.append(" FROM ")
-    sql.append(tableName)
+    if (stmt.from != null) {
+      sql.append(" FROM ")
+      sql.append(stmt.from.name)
+    }
     if (stmt.where != null) {
       sql.append(" WHERE ")
       sql.append(stmt.where)

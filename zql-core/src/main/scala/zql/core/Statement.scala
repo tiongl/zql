@@ -1,5 +1,6 @@
 package zql.core
 
+import zql.list.ListTable
 import zql.sql.SqlGenerator
 
 import scala.collection.mutable
@@ -22,8 +23,9 @@ trait Compilable {
 
 trait StatementWrapper extends Compilable {
   def statement(): Statement
-
   def compile = statement.compile
+  //  override def requiredColumns = Set()
+  //  override val name = Symbol(statement.toSql("test"))
 }
 
 class StatementEnd(val statement: Statement) extends StatementWrapper
@@ -57,11 +59,13 @@ trait Whereable extends StatementWrapper {
 
 class Whered(val statement: Statement) extends Groupable
 
-class Selected(val statement: Statement) extends Groupable with Whereable
+trait Fromable extends StatementWrapper {
+  class Fromed(val statement: Statement) extends Groupable with Whereable
+  def from(table: Table): Fromed = new Fromed(statement.from(table))
+}
 
-trait Selectable extends StatementWrapper {
-  def select(selects: Column*) = new Selected(statement().select(selects))
-  def selectDistinct(selects: Column*) = new Selected(statement().select(selects).distinct())
+class Selected(distinct: Boolean, cols: Column*) extends Fromable {
+  val statement = new Statement(Map()).select(cols).distinct(distinct)
 }
 
 case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
@@ -118,12 +122,17 @@ case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
 
   def having = get[Condition](HAVING)
 
-  def distinct() = newStatement(DISTINCT, true)
+  def distinct(bool: Boolean) = newStatement(DISTINCT, bool)
 
   def isDistinct() = get[Boolean](DISTINCT)
 
-  def compile = from.compile(this)
+  def compile = from match {
+    case null =>
+      ListTable[Any]('hashCode)(List(1)).compile(this) //just a dummy table
+    case tb: Table =>
+      tb.compile(this)
+  }
 
-  def toSql(tableName: String) = new SqlGenerator().generate(this, tableName)
+  def toSql() = new SqlGenerator().generate(this)
 }
 
