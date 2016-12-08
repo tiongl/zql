@@ -11,4 +11,12 @@ class FuncSchemaTest extends TableTest {
     ('spoudId, _.spouseId)
 
   )(data)
+
+  val table2 = ListTable.create[Person](
+    ('id, _.id),
+    ('fullName, (p: Person) => p.firstName + p.lastName),
+    ('age, _.age),
+    ('spoudId, _.spouseId)
+
+  )(data)
 }

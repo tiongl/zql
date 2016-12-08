@@ -1,12 +1,11 @@
-package zql.example
+package zql.examples
 
-import zql.list.ListTable
 import zql.core._
+import zql.list.ListTable
 
 object ListTableExample {
+
   def main(args: Array[String]) {
-    //the domain object
-    case class Person(id: Int, val firstName: String, val lastName: String, age: Int, spouseId: Int)
 
     //the data
     val data = Seq( //
@@ -20,13 +19,12 @@ object ListTableExample {
 
     val listTable = ListTable[Person]('id, 'firstName, 'lastName, 'age)(data)
 
-    /** Example 1 **/
-    val statement1 = select(*) from listTable where ('firstName === "John") limit (5) //pick first 5 johns
+    val stmt = select(*) from listTable where ('firstName === "John") limit (5) //pick first 5 johns
 
-    val resultTable1 = statement1.compile.execute()
+    val results = stmt.compile.execute()
 
     /** Example 2 **/
-    val statement2 = select('firstName, 'age) from resultTable1 //select the firstname, age column
+    val statement2 = select('firstName, 'age) from results //select the firstname, age column
 
     val resultTable2 = statement2.compile.execute()
 

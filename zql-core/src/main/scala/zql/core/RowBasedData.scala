@@ -33,7 +33,14 @@ case class LazyField(className: String, fieldName: String) extends Getter {
 }
 
 case class LazyMethod(className: String, methodName: String) extends Getter {
-  @transient lazy val method = Class.forName(className).getMethod(methodName)
+  @transient lazy val method = {
+    val clazz = Class.forName(className)
+    if (clazz==null){
+      throw new IllegalStateException("Cannot find class " + className)
+    } else {
+      clazz.getMethod(methodName)
+    }
+  }
   def get(obj: Any) = method.invoke(obj)
 }
 
