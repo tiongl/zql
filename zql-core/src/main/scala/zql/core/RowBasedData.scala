@@ -20,7 +20,7 @@ trait RowBasedData[ROW] {
   def distinct(): RowBasedData[ROW]
 }
 
-class RowBasedSchema[ROW](val allColumns: ColumnDef*) extends Schema
+class DefaultSchema(val allColumns: ColumnDef*) extends Schema
 
 abstract class Getter {
   def get(obj: Any): Any
@@ -71,7 +71,7 @@ class ReflectionColumnDef[T: ClassTag](name: Symbol) extends TypedColumnDef[T](n
   override def apply(v1: T): Any = getter.get(v1)
 }
 
-abstract class RowBasedTable[T](schema: RowBasedSchema[T]) extends TypedTable[T](schema) {
+abstract class RowBasedTable[T](schema: DefaultSchema) extends TypedTable[T](schema) {
 
   def data: RowBasedData[T]
 
@@ -79,7 +79,7 @@ abstract class RowBasedTable[T](schema: RowBasedSchema[T]) extends TypedTable[T]
     new RowBasedCompiler(this, schema).compile(stmt)
   }
 
-  def createTable[T: ClassTag](rowBased: RowBasedData[T], newShema: RowBasedSchema[T]): RowBasedTable[T]
+  def createTable[T: ClassTag](rowBased: RowBasedData[T], newShema: DefaultSchema): RowBasedTable[T]
 
   def collectAsList() = data.asList
 
@@ -90,7 +90,7 @@ abstract class ColumnAccessor[ROW, +T]() extends ((ROW) => T) with Serializable
 
 abstract class ConditionAccessor[ROW]() extends ColumnAccessor[ROW, Boolean]
 
-class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[ROW]) extends Compiler[RowBasedTable[Row]] {
+class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: DefaultSchema) extends Compiler[RowBasedTable[Row]] {
 
   case class StatementInfo(stmt: Statement) {
     val expandedSelects = stmt.select.flatMap {
@@ -140,7 +140,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     val newColumns = stmtInfo.expandedSelects.zipWithIndex.map {
       case (col, index) => new RowColumnDef(col.getResultName, index)
     }
-    val resultSchema = new RowBasedSchema[Row](newColumns: _*)
+    val resultSchema = new DefaultSchema(newColumns: _*)
     val rowBased = table.data.withOption(option)
     val execPlan = plan("Query") {
       first("Filter the data") {
@@ -214,7 +214,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     execPlan
   }
 
-  def compileSelects[ROW](selects: Seq[Column], schema: RowBasedSchema[ROW]): Seq[(Symbol, ColumnAccessor[ROW, _])] = {
+  def compileSelects[ROW](selects: Seq[Column], schema: DefaultSchema): Seq[(Symbol, ColumnAccessor[ROW, _])] = {
     selects.flatMap {
       case ac: MultiColumn =>
         ac.toColumns(schema).map(col =>
@@ -224,7 +224,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     }
   }
 
-  def compileCondition[ROW](cond: Condition, schema: RowBasedSchema[ROW]): ColumnAccessor[ROW, Boolean] = {
+  def compileCondition[ROW](cond: Condition, schema: DefaultSchema): ColumnAccessor[ROW, Boolean] = {
     cond match {
       case bc: BinaryCondition =>
         val a = compileCondition[ROW](bc.a, schema)
@@ -248,13 +248,13 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     }
   }
 
-  def compileOrdering(orderSpecs: Seq[OrderSpec], schema: RowBasedSchema[Row]): (Seq[ColumnAccessor[Row, _]], Ordering[Seq[Any]]) = {
+  def compileOrdering(orderSpecs: Seq[OrderSpec], schema: DefaultSchema): (Seq[ColumnAccessor[Row, _]], Ordering[Seq[Any]]) = {
     val accessors = orderSpecs.map(compileColumn[Row](_, schema))
     val ordering = new SeqOrdering(orderSpecs.map(_.ascending).toArray)
     (accessors, ordering)
   }
 
-  def compileColumn[ROW](col: Column, schema: RowBasedSchema[ROW], context: String = ""): ColumnAccessor[ROW, _] = {
+  def compileColumn[ROW](col: Column, schema: DefaultSchema, context: String = ""): ColumnAccessor[ROW, _] = {
 
     val results = col match {
       case mc: MultiColumn =>
@@ -263,7 +263,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
           override def apply(v1: ROW) = null
         }
       case cond: Condition =>
-        compileCondition(cond, schema)
+        compileCondition[ROW](cond, schema)
       case lc: LiteralColumn[_] =>
         new ColumnAccessor[ROW, Any] {
           override def apply(v1: ROW) = lc.value

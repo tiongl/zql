@@ -515,7 +515,7 @@ class StringLiteral(value: String) extends LiteralColumn[String](value) {
 class BooleanLiteral(value: Boolean) extends LiteralColumn[Boolean](value)
 
 abstract class MultiColumn extends Column {
-  def toColumns(schema: RowBasedSchema[_]): Seq[Column]
+  def toColumns(schema: DefaultSchema): Seq[Column]
 }
 
 class AllColumn extends MultiColumn {
@@ -523,7 +523,7 @@ class AllColumn extends MultiColumn {
 
   def name = Symbol("*")
 
-  def toColumns(schema: RowBasedSchema[_]) = {
+  def toColumns(schema: DefaultSchema) = {
     //TODO: make compilation to use MultiColumn interface
     schema.allColumnNames.map(new UntypedColumn(_)).toSeq
   }

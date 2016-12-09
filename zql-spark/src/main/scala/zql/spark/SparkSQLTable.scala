@@ -27,4 +27,7 @@ class SparkSQLTable(val session: SparkSession, val tableName: String) extends Ta
       override def execute(): Table = new SparkSQLTable(session, newTableName)
     }
   }
+
+  override def join[TB <: Table](t: TB) = new JoinedTable[this.type, TB](this, t)
+
 }

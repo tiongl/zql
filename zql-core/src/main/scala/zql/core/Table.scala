@@ -10,7 +10,6 @@ import scala.reflect.ClassTag
  */
 
 abstract class Table {
-
   def schema: Schema
 
   def name: String
@@ -18,9 +17,25 @@ abstract class Table {
   def compile(stmt: Statement): Executable[Table]
 
   def collectAsList(): List[Any]
+
+  def join[TB <: Table](table: TB) = new JoinedTable[this.type, TB](this, table)
 }
 
-abstract class TypedTable[T](val schema: RowBasedSchema[T]) extends Table
+class JoinedTable[T1 <: Table, T2 <: Table](val t1: T1, val t2: T2) extends Table {
+
+  override def name: String = "Join[" + t1.name + "," + t2.name + "]"
+
+  override def schema: Schema = {
+    val cols = t1.schema.allColumns() ++ t2.schema.allColumns()
+    new DefaultSchema(cols: _*)
+  }
+
+  override def collectAsList(): List[Any] = ???
+
+  override def compile(stmt: Statement): Executable[Table] = ???
+}
+
+abstract class TypedTable[T](val schema: DefaultSchema) extends Table
 
 class EmptyRow(array: Array[Any]) extends Row(array) {
   override def aggregate(row: Row, indices: Array[Int]): Row = row
