@@ -8,9 +8,11 @@ abstract class Schema {
 
   def allColumns(): Seq[ColumnDef]
 
-  val allColumnNames = allColumns.map(_.name)
+  def allColumnNames = allColumns.map(_.name)
 
-  val columnMap: Map[Symbol, ColumnDef] = allColumns().map(c => (c.name, c)).toMap
+  def columnMap: Map[Symbol, ColumnDef] = allColumns().map(c => (c.name, c)).toMap
+
+  def resolveColumnDef(sym: Symbol) = columnMap(sym)
 }
 
 abstract class ColumnDef(val name: Symbol) extends Serializable

@@ -56,6 +56,8 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   it should "support detect invalid subquery" in supportDetectBadSubquery
   it should "support from subquery" in supportFromSubquery
 
+  //misc
+  it should "support table alias" in supportTableAlias
   def supportAllOperations = {
     val one = new IntLiteral(1)
     val str = new StringLiteral("test")
@@ -282,6 +284,13 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
         assert(true)
       case e => throw e
     }
+  }
+
+  def supportTableAlias = {
+    executeAndMatch(
+      select('t1_firstName, 't1_lastName, 't1_age) from (table as 't1),
+      data.map(p => new Row(Array(p.firstName, p.lastName, p.age))).toList
+    )
   }
 
 }

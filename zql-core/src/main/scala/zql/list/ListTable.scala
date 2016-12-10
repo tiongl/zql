@@ -6,8 +6,7 @@ import zql.core._
 import zql.core.util.Utils
 import scala.reflect.ClassTag
 
-class ListTable[ROW: ClassTag](schema: DefaultSchema, list: List[ROW]) extends RowBasedTable[ROW](schema) {
-  val name = { getClass.getSimpleName + "[" + reflect.classTag[ROW].runtimeClass.getSimpleName + "]-" + UUID.randomUUID() }
+class ListTable[ROW: ClassTag](schema: Schema, list: List[ROW], val alias: String = null) extends RowBasedTable[ROW](schema) {
 
   val data = new ListData(list)
 
@@ -15,6 +14,8 @@ class ListTable[ROW: ClassTag](schema: DefaultSchema, list: List[ROW]) extends R
     val list = rowBased.asInstanceOf[ListData[T]].list
     new ListTable(newSchema, list)
   }
+
+  override def as(alias: Symbol): Table = new ListTable[ROW](AliasSchema(schema, alias), list, alias.name)
 }
 
 object ListTable {

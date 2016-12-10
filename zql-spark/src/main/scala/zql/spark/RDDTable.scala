@@ -44,15 +44,16 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
   override def distinct(): RowBasedData[T] = rdd.distinct()
 }
 
-class RDDTable[ROW: ClassTag](schema: DefaultSchema, rdd: RDD[ROW]) extends RowBasedTable[ROW](schema) {
+class RDDTable[ROW: ClassTag](schema: DefaultSchema, rdd: RDD[ROW], val alias: String = null) extends RowBasedTable[ROW](schema) {
 
-  val name = getClass.getCanonicalName + "-" + rdd
   override def data: RowBasedData[ROW] = new RDDData(rdd)
 
   override def createTable[T: ClassManifest](rowBased: RowBasedData[T], newSchema: DefaultSchema): RowBasedTable[T] = {
     val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
     new RDDTable[T](newSchema, rdd)
   }
+
+  override def as(alias: Symbol): Table = new RDDTable[ROW](schema, rdd, alias.name)
 }
 
 object RDDTable {
