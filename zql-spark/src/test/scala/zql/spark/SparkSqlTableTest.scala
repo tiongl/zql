@@ -18,6 +18,7 @@ class SparkSqlTableTest extends TableTest {
     .appName("SparkSqlTableTest")
     .config("spark.master", "local[4]")
     .config("spark.driver.allowMultipleContexts", "true")
+    .config("spark.sql.crossJoin.enabled", "true")
     .getOrCreate()
 
   //initialize

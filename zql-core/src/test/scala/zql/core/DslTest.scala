@@ -19,6 +19,7 @@ class DslTest extends FlatSpec with Matchers with PersonExample {
     select('firstName) from table limit (1, 10)
     selectDistinct('firstName) from table
     select(countDistinct('firstName)) from table
+    //    select distinct(new AllColumn())
 
     //all the where
     val wherePart = select('firstName) from table where ('firstName === 'lastName) //select with condition
@@ -49,6 +50,10 @@ class DslTest extends FlatSpec with Matchers with PersonExample {
     //subquery
     select(select(1)) from table
     select(*) from (select(*) from table)
+
+    //join syntax
+    select(*) from (table as 't1, table as 't2) orderBy ('t1_id, 't2_id)
+    select(*) from ((table as 't1) join (table as 't2)) orderBy ('t1_id, 't2_id)
 
   }
 }

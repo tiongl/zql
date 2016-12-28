@@ -10,7 +10,7 @@ class ListTable[ROW: ClassTag](schema: Schema, list: List[ROW], val alias: Strin
 
   val data = new ListData(list)
 
-  override def createTable[T: ClassTag](rowBased: RowBasedData[T], newSchema: DefaultSchema): ListTable[T] = {
+  override def createTable[T: ClassTag](rowBased: RowBasedData[T], newSchema: Schema): ListTable[T] = {
     val list = rowBased.asInstanceOf[ListData[T]].list
     new ListTable(newSchema, list)
   }
@@ -29,9 +29,7 @@ object ListTable {
 
   def create[ROW: ClassTag](cols: (Symbol, ROWFUNC[ROW])*)(data: List[ROW]) = {
     val typeCols = cols.map {
-      case (sym, func) => new TypedColumnDef[ROW](sym) {
-        override def apply(v1: ROW): Any = func.apply(v1)
-      }
+      case (sym, func) => new FuncColumnDef[ROW](sym, func)
     }
     val schema = new DefaultSchema(typeCols: _*)
     new ListTable[ROW](schema, data)
@@ -67,4 +65,30 @@ class ListData[ROW](val list: List[ROW], option: CompileOption = new CompileOpti
   override def withOption(opt: CompileOption): RowBasedData[ROW] = new ListData(list, opt)
 
   override def distinct() = list.distinct
+
+  override def join(other: RowBasedData[Row], jointPoint: (Row) => Boolean): RowBasedData[Row] = {
+    if (this.isInstanceOf[RowBasedData[Row]]) {
+      other match {
+        case rbd: ListData[Row] =>
+          val newList = list.asInstanceOf[List[Row]].flatMap {
+            t1 =>
+              rbd.list.flatMap {
+                t2 =>
+                  val allData = t1.data ++ t2.data
+                  val newRow = new Row(allData)
+                  if (jointPoint.apply(newRow)) {
+                    Seq(newRow)
+                  } else {
+                    None
+                  }
+              }
+          }
+          newList
+        case _ =>
+          throw new IllegalArgumentException("Joining with " + other.getClass + " is not supported")
+      }
+    } else {
+      throw new IllegalArgumentException("Can only join if this is instance of RowBasedData[Row]")
+    }
+  }
 }

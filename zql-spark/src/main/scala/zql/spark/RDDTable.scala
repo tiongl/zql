@@ -42,18 +42,28 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
   override def withOption(option: CompileOption): RowBasedData[T] = new RDDData[T](rdd, option)
 
   override def distinct(): RowBasedData[T] = rdd.distinct()
+
+  override def join(other: RowBasedData[Row], jointPoint: (Row) => Boolean): RowBasedData[Row] = other match {
+    case rddData: RDDData[Row] =>
+      rdd.asInstanceOf[RDD[Row]].cartesian[Row](rddData.rdd).map {
+        case (r1, r2) => new Row(r1.data ++ r2.data)
+      }.filter(jointPoint.apply(_))
+    case _ =>
+      throw new IllegalArgumentException("Unsupported join type " + other.toString)
+  }
 }
 
-class RDDTable[ROW: ClassTag](schema: DefaultSchema, rdd: RDD[ROW], val alias: String = null) extends RowBasedTable[ROW](schema) {
+class RDDTable[ROW: ClassTag](schema: Schema, rdd: RDD[ROW], val alias: String = null) extends RowBasedTable[ROW](schema) {
 
   override def data: RowBasedData[ROW] = new RDDData(rdd)
 
-  override def createTable[T: ClassManifest](rowBased: RowBasedData[T], newSchema: DefaultSchema): RowBasedTable[T] = {
+  override def createTable[T: ClassManifest](rowBased: RowBasedData[T], newSchema: Schema): RowBasedTable[T] = {
     val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
     new RDDTable[T](newSchema, rdd)
   }
 
-  override def as(alias: Symbol): Table = new RDDTable[ROW](schema, rdd, alias.name)
+  override def as(alias: Symbol): Table = new RDDTable[ROW](AliasSchema(schema, alias), rdd, alias.name)
+
 }
 
 object RDDTable {

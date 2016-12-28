@@ -1,15 +1,12 @@
 package zql.core
 
 import zql.core.util.Utils
+import zql.sql.{ SqlGenerator, DefaultSqlGenerator }
 
 /** a generic column **/
 abstract class Column extends Serializable {
 
   var alias: Symbol = null
-
-  def name: Symbol
-
-  override def toString = name.name
 
   def as(name: Symbol) = {
     alias = name
@@ -40,7 +37,11 @@ abstract class Column extends Serializable {
 
   def /(other: Column): NumericColumn = new Divide(castToNumeric, other.castToNumeric)
 
-  def requiredColumns: Set[Symbol]
+  def requiredColumns: Seq[Symbol]
+
+  def name = Symbol(toSql(new DefaultSqlGenerator()))
+
+  def toSql(gen: SqlGenerator): String
 }
 
 /** column with a type **/
@@ -380,93 +381,105 @@ abstract class Condition(cols: Column*) extends CompositeColumn[Boolean](cols: _
   override def castToNumeric: NumericColumn = throw new IllegalArgumentException(s"Condition ${this} cannot be numeric")
 }
 
-abstract class BinaryCondition(val a: Condition, val b: Condition) extends Condition(a, b) {
+abstract class BinaryCondition(val a: Condition, val b: Condition, val operator: String) extends Condition(a, b) {
   def evaluate(a: Boolean, b: Boolean): Boolean
+  def toSql(gen: SqlGenerator) = {
+    val aSql = gen.visit(a, "")
+    val bSql = gen.visit(b, "")
+    s"(${aSql} ${operator} ${bSql})"
+  }
 }
 
 /** a composite condition **/
-class AndCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
-  def name = Symbol(s"(${a} AND ${b})")
+class AndCondition(a: Condition, b: Condition) extends BinaryCondition(a, b, "AND") {
   def evaluate(a: Boolean, b: Boolean) = a && b
 }
 
-class OrCondition(a: Condition, b: Condition) extends BinaryCondition(a, b) {
-  def name = Symbol(s"(${a} OR ${b})")
+class OrCondition(a: Condition, b: Condition) extends BinaryCondition(a, b, "OR") {
   def evaluate(a: Boolean, b: Boolean) = a || b
 }
 
 class NotCondition(val a: TypedColumn[Boolean]) extends Condition(a) {
-  def name = Symbol(s"NOT(${a})")
   def evaluate(a: Boolean) = !a
+  def toSql(gen: SqlGenerator) = {
+    val aStr = gen.visit(a, null)
+    s"NOT(${aStr})"
+  }
 }
 
-abstract class EqualityCondition(val a: Column, val b: Column) extends Condition(a, b) {
+abstract class EqualityCondition(val a: Column, val b: Column, val operator: String) extends Condition(a, b) {
   def evaluate(a: Any, b: Any): Boolean
+  def toSql(gen: SqlGenerator) = {
+    val aSql = gen.visit(a, null)
+    val bSql = gen.visit(b, null)
+    s"${aSql} ${operator} ${bSql}"
+  }
 }
 
-class Equals(a: Column, b: Column) extends EqualityCondition(a, b) {
-  def name = Symbol(s"${a} == ${b}")
+class Equals(a: Column, b: Column) extends EqualityCondition(a, b, "==") {
   def evaluate(a: Any, b: Any) = a == b
+
 }
 
-class NotEquals(a: Column, b: Column) extends EqualityCondition(a, b) {
-  def name = Symbol(s"${a} != ${b}")
+class NotEquals(a: Column, b: Column) extends EqualityCondition(a, b, "!=") {
   def evaluate(a: Any, b: Any) = a != b
 }
 
-class LessThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  def name = Symbol(s"${a} < ${b}")
+class LessThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b, "<") {
   def evaluate(a: Any, b: Any) = Utils.<(a, b)
 }
 
-class LessThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  def name = Symbol(s"${a} <= ${b}")
+class LessThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b, "<=") {
   def evaluate(a: Any, b: Any) = Utils.<=(a, b)
 }
 
-class GreaterThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  def name = Symbol(s"${a} > ${b}")
+class GreaterThan(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b, ">") {
   def evaluate(a: Any, b: Any) = Utils.>(a, b)
 }
 
-class GreaterThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b) {
-  def name = Symbol(s"${a} >= ${b}")
+class GreaterThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCondition(a, b, ">=") {
   def evaluate(a: Any, b: Any) = Utils.>=(a, b)
 }
 
-abstract class BinaryFunction[T](val a: Column, val b: Column) extends Function[T](a, b) {
+abstract class BinaryFunction[T](val funcName: String, val a: Column, val b: Column) extends Function[T](funcName, a, b) {
   def evaluate(a: Any, b: Any): T
+  override def toSql(gen: SqlGenerator) = {
+    val aSql = gen.visit(a, null)
+    val bSql = gen.visit(b, null)
+    s"(${aSql} ${funcName} ${bSql})"
+  }
 }
 
-class Plus(a: Column, b: Column) extends BinaryFunction[Any](a, b) {
-  def name = Symbol(s"(${a} + ${b})")
+class Plus(a: Column, b: Column) extends BinaryFunction[Any]("+", a, b) {
   def evaluate(a: Any, b: Any) = NumericColumn.+(a, b)
 }
 
-class Minus(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
-  def name = Symbol(s"(${a} - ${b})")
+class Minus(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any]("-", a, b) with NumericColumn {
   def evaluate(a: Any, b: Any) = NumericColumn.-(a, b)
 }
 
-class Multiply(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
-  def name = Symbol(s"(${a} * ${b})")
+class Multiply(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any]("*", a, b) with NumericColumn {
   def evaluate(a: Any, b: Any) = NumericColumn.*(a, b)
 }
 
-class Divide(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any](a, b) with NumericColumn {
-  def name = Symbol(s"(${a} / ${b})")
+class Divide(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any]("/", a, b) with NumericColumn {
   def evaluate(a: Any, b: Any) = NumericColumn./(a, b)
 }
 
 /********************/
 /* Real data columns*/
 /********************/
-/* named column */
-abstract class DataColumn[T](val name: Symbol) extends TypedColumn[T] with OrderSpec {
-  def requiredColumns = Set(name)
+trait DataColumn extends Column with OrderSpec
+
+abstract class TypedDataColumn[T](override val name: Symbol) extends TypedColumn[T] with DataColumn {
+  def requiredColumns = Seq(name)
+  def toSql(gen: SqlGenerator) = {
+    //TODO: This is temporary, until we have normalization of statement
+    name.name.replace("_", ".")
+  }
 }
 
-class NumericDataColumn[T](n: Symbol) extends DataColumn[T](n) with NumericColumn {
+class NumericDataColumn[T](name: Symbol) extends TypedDataColumn[T](name) with NumericColumn {
   override def castToNumeric = { this }
 }
 
@@ -478,13 +491,13 @@ class FloatColumn(n: Symbol) extends NumericDataColumn[Float](n)
 
 class DoubleColumn(n: Symbol) extends NumericDataColumn[Double](n)
 
-class StringColumn(n: Symbol) extends DataColumn[String](n)
+class StringColumn(n: Symbol) extends TypedDataColumn[String](n)
 
-class BooleanColumn(n: Symbol) extends DataColumn[Boolean](n)
+class BooleanColumn(n: Symbol) extends TypedDataColumn[Boolean](n)
 
-class ByteColumn(n: Symbol) extends DataColumn[Byte](n)
+class ByteColumn(n: Symbol) extends TypedDataColumn[Byte](n)
 
-class UntypedColumn(n: Symbol) extends DataColumn[Any](n) {
+class UntypedColumn(n: Symbol) extends TypedDataColumn[Any](n) {
   override def castToNumeric: NumericColumn = new NumericDataColumn(n)
 }
 
@@ -492,8 +505,10 @@ class UntypedColumn(n: Symbol) extends DataColumn[Any](n) {
 /* Literal columns */
 /*******************/
 abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] {
-  def name = Symbol(s"${value}")
-  def requiredColumns = Set()
+  def requiredColumns = Seq()
+  def toSql(gen: SqlGenerator) = {
+    s"${value}"
+  }
 }
 
 abstract class NumericLiteral[T](value: T) extends LiteralColumn[T](value) with NumericColumn {
@@ -509,50 +524,52 @@ class FloatLiteral(value: Float) extends NumericLiteral[Float](value)
 class DoubleLiteral(value: Double) extends NumericLiteral[Double](value)
 
 class StringLiteral(value: String) extends LiteralColumn[String](value) {
-  override def name = Symbol(s"'${value}'")
+  override def toSql(gen: SqlGenerator) = s"'${value}'"
 }
 
 class BooleanLiteral(value: Boolean) extends LiteralColumn[Boolean](value)
 
-abstract class MultiColumn extends Column {
+trait MultiColumn extends Column {
   def toColumns(schema: Schema): Seq[Column]
 }
 
 class AllColumn extends MultiColumn {
-  def requiredColumns = Set()
-
-  def name = Symbol("*")
+  def requiredColumns = Seq()
 
   def toColumns(schema: Schema) = {
     //TODO: make compilation to use MultiColumn interface
     schema.allColumnNames.map(new UntypedColumn(_)).toSeq
   }
+
+  def toSql(gen: SqlGenerator) = "*"
 }
 
 /********************/
 /* Function columns */
 /********************/
 
-abstract class Function[T](cols: Column*) extends CompositeColumn[T](cols: _*)
+abstract class Function[T](funcName: String, cols: Column*) extends CompositeColumn[T](cols: _*) {
+  def toSql(gen: SqlGenerator) = {
+    val columns = cols.map(c => gen.visit(c, null)).mkString(", ")
+    s"${funcName}(${columns})"
+  }
+}
 
-abstract class AggregateFunction[T](cols: Column*) extends Function[T](cols: _*) {
+abstract class AggregateFunction[T](funcName: String, cols: Column*) extends Function[T](funcName, cols: _*) {
   def createAggregatable(v1: Seq[Any]): Aggregatable[T]
 }
 
 abstract class Aggregatable[T <: Any] {
   def aggregate(agg: Aggregatable[T]): Aggregatable[T]
-
   def value: T
 }
 
 case class Summable(val value: Number) extends Aggregatable[Number] {
   override def aggregate(agg: Aggregatable[Number]) = new Summable(NumericColumn.+(value, agg.value).asInstanceOf[Number])
-
   override def toString = value.toString
 }
 
-class Sum(val col: NumericColumn) extends AggregateFunction[Number](col) {
-  def name = Symbol(s"SUM(${col})")
+class Sum(val col: NumericColumn) extends AggregateFunction[Number]("SUM", col) {
   def createAggregatable(v1: Seq[Any]) = new Summable(v1(0).asInstanceOf[Int])
 }
 
@@ -561,8 +578,7 @@ case class Countable(val value: Int) extends Aggregatable[Int] {
   override def toString = value.toString
 }
 
-class Count(val col: Column) extends AggregateFunction[Int](col) {
-  def name = Symbol(s"COUNT(${col})")
+class Count(val col: Column) extends AggregateFunction[Int]("COUNT", col) {
   def createAggregatable(v1: Seq[Any]) = new Countable(1)
 }
 
@@ -572,16 +588,21 @@ case class DistinctCountable(val rows: Set[Row]) extends Aggregatable[Int] {
   override def toString = value.toString
 }
 
-class CountDistinct(cols: Column*) extends AggregateFunction[Int](cols: _*) {
-  def name = Symbol(s"COUNT(DISTINCT ${cols.mkString(",")})")
+class CountDistinct(cols: Column*) extends AggregateFunction[Int]("COUNT_DISTINCT", cols: _*) {
+  val funcName = "COUNT(DISTINCT"
   def createAggregatable(v1: Seq[Any]) = new DistinctCountable(Set(new Row(v1.toArray)))
+  override def toSql(gen: SqlGenerator) = {
+    val columns = cols.map(c => gen.visit(c, null)).mkString(", ")
+    s"COUNT(DISTINCT ${columns})"
+  }
+
 }
 
 class SubSelect(val statement: StatementWrapper) extends Column {
-  override def name: Symbol = Symbol("(" + statement.statement().toSql() + ")")
-  override def requiredColumns: Set[Symbol] = ???
-}
+  override def requiredColumns: Seq[Symbol] = Seq() //non of other statement business
+  def toSql(gen: SqlGenerator) = {
+    val stmtSql = gen.generateSql(statement.statement())
+    s"(${stmtSql})"
+  }
 
-//class Distinct(cols: Seq[Column]) extends CompositeColumn[Any](cols: _*) {
-//  def name = Symbol("DISTINCT " + cols.mkString(","))
-//}
+}

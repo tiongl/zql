@@ -11,8 +11,9 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   def executeAndMatch(statement: Compilable, rows: List[Row]) = {
     val results = statement.compile.execute().collectAsList().map(r => normalizeRow(r))
     println("Results = " + results)
-    //    println("rows = " + rows + rows.map(_.getClass))
-
+    println("Results size = " + results.length)
+    println("Expected = " + rows)
+    println("Expected size = " + rows.size)
     results should be(rows)
   }
 
@@ -56,8 +57,14 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   it should "support detect invalid subquery" in supportDetectBadSubquery
   it should "support from subquery" in supportFromSubquery
 
+  //joined query
+  it should "support cross product join" in supportCrossProductJoin
+  it should "support join" in supportJoinTable
+  it should "support join-on" in supportJoinTableOn
+
   //misc
   it should "support table alias" in supportTableAlias
+
   def supportAllOperations = {
     val one = new IntLiteral(1)
     val str = new StringLiteral("test")
@@ -290,6 +297,45 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
     executeAndMatch(
       select('t1_firstName, 't1_lastName, 't1_age) from (table as 't1),
       data.map(p => new Row(Array(p.firstName, p.lastName, p.age))).toList
+    )
+  }
+
+  def supportCrossProductJoin = {
+    executeAndMatch(
+      select(*) from (table as 't1, table as 't2) orderBy ('t1_id, 't2_id),
+      data.flatMap {
+        t1 =>
+          data.map {
+            t2 =>
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId, t2.id, t2.firstName, t2.lastName, t2.age, t2.spouseId)
+              new Row(all)
+          }
+      }
+    )
+  }
+
+  def supportJoinTable = {
+    executeAndMatch(
+      select(*) from ((table as 't1) join (table as 't2)) orderBy ('t1_id, 't2_id),
+      data.flatMap {
+        t1 =>
+          data.map {
+            t2 =>
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId, t2.id, t2.firstName, t2.lastName, t2.age, t2.spouseId)
+              new Row(all)
+          }
+      }
+    )
+  }
+
+  def supportJoinTableOn = {
+    executeAndMatch(
+      select(*) from ((table as 't1) join (table as 't2) on ('t1_id === 't2_id)) orderBy ('t1_id, 't2_id),
+      data.map {
+        t1 =>
+          val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId, t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId)
+          new Row(all)
+      }
     )
   }
 

@@ -1,7 +1,7 @@
 package zql.core
 
 import zql.list.ListTable
-import zql.sql.SqlGenerator
+import zql.sql.{ DefaultSqlGenerator }
 
 import scala.collection.mutable
 
@@ -45,13 +45,13 @@ trait Groupable extends Orderable {
   def groupBy(groupBys: Column*): Grouped = new Grouped(this.statement.groupBy(groupBys))
 }
 
-trait Whereable extends StatementWrapper {
+trait Whereable extends Groupable {
   class Whered(val statement: Statement) extends Groupable
   def where(condition: Condition): Whered = new Whered(statement.where(condition))
 }
 
 trait Fromable extends StatementWrapper {
-  class Fromed(val statement: Statement) extends Groupable with Whereable
+  class Fromed(val statement: Statement) extends Whereable
   def from(table: Table): Fromed = new Fromed(statement.from(table))
 }
 
@@ -124,6 +124,6 @@ case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
       tb.compile(this)
   }
 
-  def toSql() = new SqlGenerator().generate(this)
+  def toSql() = new DefaultSqlGenerator().generateSql(this)
 }
 

@@ -2,6 +2,7 @@ package zql.core
 
 import org.scalatest.{ FlatSpec, Matchers }
 import zql.list.ListTable
+import zql.sql.DefaultSqlGenerator
 
 class SqlGeneratorTest extends FlatSpec with Matchers with PersonExample {
 
@@ -12,7 +13,8 @@ class SqlGeneratorTest extends FlatSpec with Matchers with PersonExample {
   println("Table name = " + table.name + " table name = " + table.name)
 
   def generateAndMatch(statement: StatementWrapper, sql: String) = {
-    val results = statement.statement.toSql()
+    //val results = statement.statement.toSql()
+    val results = new DefaultSqlGenerator().generateSql(statement.statement())
     results should be(sql)
   }
 
@@ -55,7 +57,7 @@ class SqlGeneratorTest extends FlatSpec with Matchers with PersonExample {
   it should "support simple select" in {
     generateAndMatch(
       select('firstName, sum('age) as 'ageSum) from table where ('fistName === "John" and 'firstName === "John" or 'firstName === "John") groupBy ('firstName) having ('ageSum > 50) orderBy ('firstName, 'lastName desc) limit (1, 10), // orderBy ('age),
-      "SELECT firstName, SUM(age) as ageSum FROM " + table.name + " WHERE ((fistName == 'John' AND firstName == 'John') OR firstName == 'John') GROUP BY  firstName HAVING ageSum > 50 ORDER BY firstName, lastName DESC LIMIT  1, 10"
+      "SELECT firstName, SUM(age) AS ageSum FROM " + table.name + " WHERE ((fistName == 'John' AND firstName == 'John') OR firstName == 'John') GROUP BY firstName HAVING ageSum > 50 ORDER BY firstName, lastName DESC LIMIT 1, 10"
     )
   }
 

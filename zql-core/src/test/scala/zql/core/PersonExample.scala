@@ -10,10 +10,10 @@ trait PersonExample {
   val data = Seq( //
     new Person(0, "John", "Smith", 20, 4), //
     new Person(1, "John", "Doe", 71, 5), //
-    new Person(2, "John", "Johnson", 5, -1), //
-    new Person(3, "Adam", "Smith", 10, -1), //
+    new Person(2, "John", "Johnson", 5, 10), //
+    new Person(3, "Adam", "Smith", 10, 20), //
     new Person(4, "Ann", "Smith", 10, 0), //
-    new Person(4, "Anna", "Doe", 10, 1) //
+    new Person(5, "Anna", "Doe", 10, 1) //
   ).toList
 
 }

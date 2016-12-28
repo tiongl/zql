@@ -36,10 +36,10 @@ package object core {
 
   implicit def statementAsTable(stmt: StatementWrapper): Table = stmt.statement().compile.execute()
 
-  implicit def tableSeqToJoinedTable(tuple: Tuple2[Table, Table]) = new JoinedTable(tuple._1, tuple._2)
+  implicit def tableSeqToJoinedTable(tuple: Tuple2[Table, Table]) = tuple._1.join(tuple._2)
 
   //purposely not support distinct this way as implementation is complicated
-  //  implicit def distinct(cols: Column*): Distinct = new Distinct(cols)
+  //  def distinct(cols: Column*): Distinct = new Distinct(cols: _*)
 
   def sum(col: UntypedColumn): Sum = sum(new NumericDataColumn(col.name)) //upgrade to numeric column
 
