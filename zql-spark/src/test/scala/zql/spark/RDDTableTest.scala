@@ -12,16 +12,20 @@ class RDDTableTest extends TableTest {
 
   val sc = new SparkContext(config)
 
-  val rdd = sc.parallelize(data)
+  val personRdd = sc.parallelize(persons)
 
-  val table = RDDTable[Person]('id, 'firstName, 'lastName, 'age, 'spouseId)(rdd)
+  val departmentRdd = sc.parallelize(departments)
+
+  val personTable = RDDTable[Person]("person", 'id, 'firstName, 'lastName, 'age, 'departmentId)(personRdd)
+
+  val departmentTable = RDDTable[Department]("department", 'id, 'name)(departmentRdd)
 
   it should "support partition by" in supportPartitionBy
 
   def supportPartitionBy = {
     executeAndMatch(
-      select('firstName, 'lastName) from table partitionBy ('firstName), //we don't actually support partition by yet
-      data.map(p => new Row(Array(p.firstName, p.lastName)))
+      select('firstName, 'lastName) from personTable partitionBy ('firstName), //we don't actually support partition by yet
+      persons.map(p => new Row(Array(p.firstName, p.lastName)))
     )
   }
 

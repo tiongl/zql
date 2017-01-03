@@ -53,22 +53,22 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
   }
 }
 
-class RDDTable[ROW: ClassTag](schema: Schema, rdd: RDD[ROW], val alias: String = null) extends RowBasedTable[ROW](schema) {
+class RDDTable[ROW: ClassTag](name: String, schema: Schema, rdd: RDD[ROW], val alias: String = null) extends RowBasedTable[ROW](name, schema) {
 
   override def data: RowBasedData[ROW] = new RDDData(rdd)
 
-  override def createTable[T: ClassManifest](rowBased: RowBasedData[T], newSchema: Schema): RowBasedTable[T] = {
+  override def createTable[T: ClassManifest](name: String, rowBased: RowBasedData[T], newSchema: Schema): RowBasedTable[T] = {
     val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
-    new RDDTable[T](newSchema, rdd)
+    new RDDTable[T](name, newSchema, rdd)
   }
 
-  override def as(alias: Symbol): Table = new RDDTable[ROW](AliasSchema(schema, alias), rdd, alias.name)
+  override def as(alias: Symbol): Table = new RDDTable[ROW](name, schema, rdd, alias.name)
 
 }
 
 object RDDTable {
-  def apply[ROW: ClassTag](cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {
+  def apply[ROW: ClassTag](name: String, cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {
     val schema = new DefaultSchema(cols: _*)
-    new RDDTable[ROW](schema, data)
+    new RDDTable[ROW](name, schema, data)
   }
 }

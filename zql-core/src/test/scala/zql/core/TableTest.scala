@@ -6,9 +6,11 @@ import scala.collection.mutable
 
 abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll with PersonExample {
 
-  def table: Table
+  def personTable: Table
 
-  def executeAndMatch(statement: Compilable, rows: List[Row]) = {
+  def departmentTable: Table
+
+  def executeAndMatch(statement: StatementWrapper, rows: List[Row]) = {
     val results = statement.compile.execute().collectAsList().map(r => normalizeRow(r))
     println("Results = " + results)
     println("Results size = " + results.length)
@@ -59,8 +61,11 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   //joined query
   it should "support cross product join" in supportCrossProductJoin
-  it should "support join" in supportJoinTable
-  it should "support join-on" in supportJoinTableOn
+  it should "support (same table) join " in supportSameTableJoinTable
+  it should "support (same table) join-on " in supportSameTableJoinOn
+  it should "support (same table) join with filter (same table)" in supportSameTableJoinTableWithFilter
+  it should "support join with original column name" in supportJoinTableWithOriginalColumnName
+  it should "support join with filter (different table)" in supportJoinTableWithFilter
 
   //misc
   it should "support table alias" in supportTableAlias
@@ -70,49 +75,49 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
     val str = new StringLiteral("test")
     executeAndMatch(
       //TODO: string + is not working
-      select(one + 1, one - 1, one * 2, one / 2) from table,
-      data.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1 / 2.toFloat)))
+      select(one + 1, one - 1, one * 2, one / 2) from personTable,
+      persons.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1 / 2.toFloat)))
     )
 
     //equality
     executeAndMatch(
-      select(one > 1, one > 0, one > -1, one >= 1, one >= 0, one >= -1, one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1) from table,
-      data.map(p => new Row(Array(1 > 1, 1 > 0, 1 > -1, 1 >= 1, 1 >= 0, 1 >= -1, 1 == 1, 1 == 0, 1 == -1, 1 != 1, 1 != 0, 1 != -1, 1 < 1, 1 < 0, 1 < -1, 1 <= 1, 1 <= 0, 1 <= -1)))
+      select(one > 1, one > 0, one > -1, one >= 1, one >= 0, one >= -1, one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1) from personTable,
+      persons.map(p => new Row(Array(1 > 1, 1 > 0, 1 > -1, 1 >= 1, 1 >= 0, 1 >= -1, 1 == 1, 1 == 0, 1 == -1, 1 != 1, 1 != 0, 1 != -1, 1 < 1, 1 < 0, 1 < -1, 1 <= 1, 1 <= 0, 1 <= -1)))
     )
   }
 
   def supportSelectWithMathOperations = {
     executeAndMatch(
-      select(1 + 1, 'firstName, 'age + 1) from table,
-      data.map(p => new Row(Array(2, p.firstName, p.age + 1))).toList
+      select(1 + 1, 'firstName, 'age + 1) from personTable,
+      persons.map(p => new Row(Array(2, p.firstName, p.age + 1))).toList
     )
   }
 
   def supportSelectLiteral = {
     executeAndMatch(
-      select(1, "test", true) from table,
-      data.map(p => new Row(Array(1, "test", true))).toList
+      select(1, "test", true) from personTable,
+      persons.map(p => new Row(Array(1, "test", true))).toList
     )
   }
 
   def supportSelectAll = {
     executeAndMatch(
-      select(*) from table,
-      data.map(p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))).toList
+      select(*) from personTable,
+      persons.map(p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.departmentId))).toList
     )
   }
 
   def supportSelectDataColumn = {
     executeAndMatch(
-      select('firstName, 'lastName) from table,
-      data.map(p => new Row(Array(p.firstName, p.lastName))).toList
+      select('firstName, 'lastName) from personTable,
+      persons.map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   def supportDetectInvalidAggregation = {
     try {
       executeAndMatch(
-        select('firstName, 'lastName, sum('age)) from table,
+        select('firstName, 'lastName, sum('age)) from personTable,
         List()
       )
       throw new Exception("Must detect invalid aggregation statement")
@@ -124,35 +129,35 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSimpleFiltering = {
     executeAndMatch(
-      select('firstName, 'lastName) from table where ('firstName === "John"),
-      data.filter(_.firstName == "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
+      select('firstName, 'lastName) from personTable where ('firstName === "John"),
+      persons.filter(_.firstName == "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   def supportFilteringWithAggregation = {
     executeAndMatch(
-      select(sum('age)) from table where ('firstName === "John"),
-      List(new Row(Array(data.filter(_.firstName == "John").map(_.age).sum)))
+      select(sum('age)) from personTable where ('firstName === "John"),
+      List(new Row(Array(persons.filter(_.firstName == "John").map(_.age).sum)))
     )
   }
 
   def supportFilteringWithBooleanLogic = {
     executeAndMatch(
-      select('firstName, 'lastName) from table where (('firstName === "John" and 'lastName === "Smith") or ('lastName === "Doe")),
-      data.filter(p => (p.firstName == "John" && p.lastName == "Smith") || p.lastName == "Doe").map(p => new Row(Array(p.firstName, p.lastName))).toList
+      select('firstName, 'lastName) from personTable where (('firstName === "John" and 'lastName === "Smith") or ('lastName === "Doe")),
+      persons.filter(p => (p.firstName == "John" && p.lastName == "Smith") || p.lastName == "Doe").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   def supportNotFilter = {
     executeAndMatch(
-      select('firstName, 'lastName) from table where (NOT('firstName === "John")),
-      data.filter(p => p.firstName != "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
+      select('firstName, 'lastName) from personTable where (NOT('firstName === "John")),
+      persons.filter(p => p.firstName != "John").map(p => new Row(Array(p.firstName, p.lastName))).toList
     )
   }
 
   def supportDetectInvalidAggregation2 = {
     try {
-      val stmt = select('firstName, 'lastName) from table groupBy ('firstName)
+      val stmt = select('firstName, 'lastName) from personTable groupBy ('firstName)
       stmt.compile
       throw new Exception("Groupby without aggregate function must fail")
 
@@ -164,11 +169,11 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSimpleGroupFunction = {
     executeAndMatch(
-      select('firstName, sum('age)) from table groupBy ('firstName) orderBy ('firstName), {
+      select('firstName, sum('age)) from personTable groupBy ('firstName) orderBy ('firstName), {
         //because some aggregation system (spark) has unordered result, we have to use order by here
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](
-          data,
+          persons,
           _.firstName,
           p => new Row(Array(p.firstName, new Summable(p.age))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
@@ -179,10 +184,10 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportGroupbyHaving = {
     executeAndMatch(
-      select('firstName, sum('age) as 'ageSum) from table groupBy ('firstName) having ('ageSum > 10), {
+      select('firstName, sum('age) as 'ageSum) from personTable groupBy ('firstName) having ('ageSum > 10), {
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](
-          data,
+          persons,
           _.firstName,
           p => new Row(Array(p.firstName, new Summable(p.age))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
@@ -193,36 +198,36 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSelectOrdering = {
     executeAndMatch(
-      select(*) from table orderBy ('firstName),
-      data.sortBy(_.firstName).map(
-        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
+      select(*) from personTable orderBy ('firstName),
+      persons.sortBy(_.firstName).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.departmentId))
       )
     )
   }
 
   def supportSelectOrderingDesc = {
     executeAndMatch(
-      select(*) from table orderBy ('firstName desc),
-      data.sortBy(_.firstName)(Ordering.String.reverse).map(
-        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
+      select(*) from personTable orderBy ('firstName desc),
+      persons.sortBy(_.firstName)(Ordering.String.reverse).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.departmentId))
       )
     )
   }
 
   def supportSelectLimitOffset = {
     executeAndMatch(
-      select(*) from table limit (1, 3),
-      data.slice(1, 4).map(
-        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
+      select(*) from personTable limit (1, 3),
+      persons.slice(1, 4).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.departmentId))
       )
     )
   }
 
   def supportSelectLimit = {
     executeAndMatch(
-      select(*) from table limit (3),
-      data.slice(0, 3).map(
-        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))
+      select(*) from personTable limit (3),
+      persons.slice(0, 3).map(
+        p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.departmentId))
       )
     )
   }
@@ -232,17 +237,17 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   /**************/
   def supportSelectCount = {
     executeAndMatch(
-      select(count(*) as 'myCount) from table,
-      List(new Row(Array(table.collectAsList().length)))
+      select(count(*) as 'myCount) from personTable,
+      List(new Row(Array(personTable.collectAsList().length)))
     )
   }
 
   def supportSelectCountWithGroupby = {
     executeAndMatch(
-      select('firstName, count('age) as 'ageSum) from table groupBy ('firstName) having ('ageSum > 10), {
+      select('firstName, count('age) as 'ageSum) from personTable groupBy ('firstName) having ('ageSum > 10), {
         val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](
-          data,
+          persons,
           _.firstName,
           p => new Row(Array(p.firstName, new Countable(1))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
@@ -253,37 +258,37 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportSelectDistinct = {
     executeAndMatch(
-      selectDistinct('firstName) from table orderBy ('firstName),
-      data.map(_.firstName).distinct.sorted.map(d => new Row(Array(d)))
+      selectDistinct('firstName) from personTable orderBy ('firstName),
+      persons.map(_.firstName).distinct.sorted.map(d => new Row(Array(d)))
     )
   }
 
   def supportSelectCountDistinct = {
     executeAndMatch(
-      select(countDistinct('firstName)) from table,
-      List(new Row(Array(data.map(_.firstName).distinct.size)))
+      select(countDistinct('firstName)) from personTable,
+      List(new Row(Array(persons.map(_.firstName).distinct.size)))
     )
   }
 
   def supportSelectSubquery = {
     executeAndMatch(
-      select(select(1)) from table,
-      data.map(p => new Row(Array(1))).toList
+      select(select(1)) from personTable,
+      persons.map(p => new Row(Array(1))).toList
     )
   }
 
   def supportFromSubquery = {
     executeAndMatch(
-      select(*) from (select(*) from table),
-      data.map(p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.spouseId))).toList
+      select(*) from (select(*) from personTable),
+      persons.map(p => new Row(Array(p.id, p.firstName, p.lastName, p.age, p.departmentId))).toList
     )
   }
 
   def supportDetectBadSubquery = {
     try {
       executeAndMatch(
-        select(select(1, 2)) from table,
-        data.map(p => new Row(Array(1))).toList
+        select(select(1, 2)) from personTable,
+        persons.map(p => new Row(Array(1))).toList
       )
       throw new Exception()
     } catch {
@@ -295,48 +300,94 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportTableAlias = {
     executeAndMatch(
-      select('t1_firstName, 't1_lastName, 't1_age) from (table as 't1),
-      data.map(p => new Row(Array(p.firstName, p.lastName, p.age))).toList
+      select(c"t1.firstName", c"t1.lastName", c"t1.age") from (personTable as 't1),
+      persons.map(p => new Row(Array(p.firstName, p.lastName, p.age))).toList
     )
   }
 
   def supportCrossProductJoin = {
     executeAndMatch(
-      select(*) from (table as 't1, table as 't2) orderBy ('t1_id, 't2_id),
-      data.flatMap {
+      select(*) from (personTable as 't1, personTable as 't2) orderBy (c"t1.id", c"t2.id"),
+      persons.flatMap {
         t1 =>
-          data.map {
+          persons.map {
             t2 =>
-              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId, t2.id, t2.firstName, t2.lastName, t2.age, t2.spouseId)
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.firstName, t2.lastName, t2.age, t2.departmentId)
               new Row(all)
           }
       }
     )
   }
 
-  def supportJoinTable = {
+  def supportSameTableJoinTable = {
     executeAndMatch(
-      select(*) from ((table as 't1) join (table as 't2)) orderBy ('t1_id, 't2_id),
-      data.flatMap {
+      select(*) from ((personTable as 't1) join (personTable as 't2)) orderBy (c"t1.id", c"t2.id"),
+      persons.flatMap {
         t1 =>
-          data.map {
+          persons.map {
             t2 =>
-              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId, t2.id, t2.firstName, t2.lastName, t2.age, t2.spouseId)
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.firstName, t2.lastName, t2.age, t2.departmentId)
               new Row(all)
           }
       }
     )
   }
 
-  def supportJoinTableOn = {
+  def supportSameTableJoinOn = {
     executeAndMatch(
-      select(*) from ((table as 't1) join (table as 't2) on ('t1_id === 't2_id)) orderBy ('t1_id, 't2_id),
-      data.map {
+      select(*) from ((personTable as 't1) join (personTable as 't2) on (c"t1.id" === c"t2.id")) orderBy (c"t1.id", c"t2.id"),
+      persons.map {
         t1 =>
-          val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId, t1.id, t1.firstName, t1.lastName, t1.age, t1.spouseId)
+          val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId)
           new Row(all)
       }
     )
   }
 
+  def supportSameTableJoinTableWithFilter = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) join (personTable as 't2) on (c"t1.id" === c"t2.id")) where c"t1.age" > 10 orderBy (c"t1.id", c"t2.id"),
+      persons.filter(_.age > 10).map {
+        t1 =>
+          val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId)
+          new Row(all)
+      }
+    )
+  }
+
+  def supportJoinTableWithFilter = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) join (departmentTable as 't2) on (c"t1.departmentId" === c"t2.id")) where c"t1.age" > 10 orderBy (c"t1.id"),
+      persons.filter(_.age > 10).flatMap {
+        t1 =>
+          departments.flatMap {
+            t2 =>
+              if (t1.departmentId == t2.id) {
+                val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.name)
+                Seq(new Row(all))
+              } else {
+                Seq()
+              }
+          }
+      }
+    )
+  }
+
+  def supportJoinTableWithOriginalColumnName = {
+    executeAndMatch(
+      select('firstName, 'lastName, 'name) from ((personTable) join (departmentTable) on (c"person.departmentId" === c"department.id")) where c"person.age" > 10 orderBy (c"firstName"),
+      persons.filter(_.age > 10).sortBy(_.firstName).flatMap {
+        t1 =>
+          departments.flatMap {
+            t2 =>
+              if (t1.departmentId == t2.id) {
+                val all = Array[Any](t1.firstName, t1.lastName, t2.name)
+                Seq(new Row(all))
+              } else {
+                Seq()
+              }
+          }
+      }
+    )
+  }
 }

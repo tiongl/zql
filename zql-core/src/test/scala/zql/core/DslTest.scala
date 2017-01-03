@@ -5,7 +5,7 @@ import zql.list.ListTable
 
 class DslTest extends FlatSpec with Matchers with PersonExample {
 
-  val table = ListTable[Person]('id, 'firstName, 'lastName, 'age)(data)
+  val table = ListTable[Person]("Person", 'id, 'firstName, 'lastName, 'age)(persons)
 
   "Here are all the supported syntax for the dsl" should "just compile" in {
 

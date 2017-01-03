@@ -33,10 +33,8 @@ class SparkSQLTable(val session: SparkSession, val tableName: String, val alias:
   override def as(alias: Symbol): Table = new SparkSQLTable(session, tableName, alias.name)
 }
 
-class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: SparkSQLTable) extends JoinedTable(tb1, tb2) {
+class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: SparkSQLTable, val alias: String = null) extends JoinedTable(tb1, tb2) {
   override def schema: Schema = new JoinedSchema(tb1, tb2)
-
-  override def alias: String = null
 
   override def name: String = s"joined_${tb1.name}_${tb2.name}"
 
@@ -46,7 +44,7 @@ class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: Sp
     new SparkSQLCompiler(this, session).compile(stmt, schema)
   }
 
-  override def as(alias: Symbol): Table = ???
+  override def as(alias: Symbol) = new JoinedSparkSqlTable(session, tb1, tb2, alias.name)
 }
 
 class SparkSQLCompiler(table: Table, session: SparkSession) extends Compiler[SparkSQLTable] {

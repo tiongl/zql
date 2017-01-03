@@ -6,33 +6,33 @@ import zql.core._
 import zql.core.util.Utils
 import scala.reflect.ClassTag
 
-class ListTable[ROW: ClassTag](schema: Schema, list: List[ROW], val alias: String = null) extends RowBasedTable[ROW](schema) {
+class ListTable[ROW: ClassTag](name: String, schema: Schema, list: List[ROW], val alias: String = null) extends RowBasedTable[ROW](name, schema) {
 
   val data = new ListData(list)
 
-  override def createTable[T: ClassTag](rowBased: RowBasedData[T], newSchema: Schema): ListTable[T] = {
+  override def createTable[T: ClassTag](newName: String, rowBased: RowBasedData[T], newSchema: Schema): ListTable[T] = {
     val list = rowBased.asInstanceOf[ListData[T]].list
-    new ListTable(newSchema, list)
+    new ListTable(newName, newSchema, list)
   }
 
-  override def as(alias: Symbol): Table = new ListTable[ROW](AliasSchema(schema, alias), list, alias.name)
+  override def as(alias: Symbol): Table = new ListTable[ROW](name, schema, list, alias.name)
 }
 
 object ListTable {
 
-  type ROWFUNC[ROW] = (ROW) => Any
+  type ROWFUNC[ROW] = ColumnDef
 
-  def apply[ROW: ClassTag](cols: ROWFUNC[ROW]*)(data: List[ROW]) = {
+  def apply[ROW: ClassTag](tbName: String, cols: TypedColumnDef[ROW]*)(data: List[ROW]) = {
     val schema = new DefaultSchema(cols.map(_.asInstanceOf[TypedColumnDef[_]]): _*)
-    new ListTable[ROW](schema, data)
+    new ListTable[ROW](tbName, schema, data)
   }
 
-  def create[ROW: ClassTag](cols: (Symbol, ROWFUNC[ROW])*)(data: List[ROW]) = {
+  def create[ROW: ClassTag](tbName: String, cols: (Symbol, (ROW) => Any)*)(data: List[ROW]) = {
     val typeCols = cols.map {
       case (sym, func) => new FuncColumnDef[ROW](sym, func)
     }
     val schema = new DefaultSchema(typeCols: _*)
-    new ListTable[ROW](schema, data)
+    new ListTable[ROW](tbName, schema, data)
   }
 }
 

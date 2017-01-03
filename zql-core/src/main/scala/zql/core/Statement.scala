@@ -119,7 +119,7 @@ case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
 
   def compile = from match {
     case null =>
-      ListTable[Any]('hashCode)(List(1)).compile(this) //just a dummy table
+      ListTable[Any]("test", 'hashCode)(List(1)).compile(this) //just a dummy table
     case tb: Table =>
       tb.compile(this)
   }

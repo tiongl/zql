@@ -7,12 +7,13 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Try
 
-class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]) extends JoinedTable(tb1, tb2) with AccessorCompiler {
+class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2], val alias: String = null) extends JoinedTable(tb1, tb2) with AccessorCompiler {
+
+  val table = this
+
   override def schema: Schema = new JoinedSchema(tb1, tb2)
 
-  override def alias: String = ???
-
-  override def name: String = ???
+  override def name: String = s"joined_${tb1.name}_${tb2.name}"
 
   override def collectAsList(): List[Any] = ???
 
@@ -21,29 +22,38 @@ class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]
     val info = new StatementInfo(stmt, schema)
     val com1 = new RowBasedCompiler(tb1)
     val com2 = new RowBasedCompiler(tb2)
-    val select1 = ArrayBuffer[ColumnAccessor[T1, Any]]()
-    val select2 = ArrayBuffer[ColumnAccessor[T2, Any]]()
-    val allColumns = info.allRequiredColumnNames.map {
+    val t1Cols = mutable.LinkedHashMap[Symbol, ColumnDef]()
+    val t2Cols = mutable.LinkedHashMap[Symbol, ColumnDef]()
+
+    val allColumnDefs = info.allRequiredColumnNames.map {
       colName =>
-        val colDef1 = Try(tb1.schema.resolveColumnDef(colName)).getOrElse(null)
-        val colDef2 = Try(tb2.schema.resolveColumnDef(colName)).getOrElse(null)
-        if (colDef1 != null) {
-          if (colDef2 != null) {
+        val flags =
+          (
+            Try(tb1.schema.resolveColumnDef(colName, tb1.getPrefixes())).getOrElse(null),
+            Try(tb2.schema.resolveColumnDef(colName, tb2.getPrefixes())).getOrElse(null)
+          )
+        flags match {
+          case (a: ColumnDef, null) =>
+            t1Cols.put(colName, a)
+          case (null, b: ColumnDef) =>
+            t2Cols.put(colName, b)
+          case (a: ColumnDef, b: ColumnDef) =>
             throw new IllegalArgumentException("Ambiguous column " + colName.name)
-          } else {
-            val accessor = new ColumnAccessor[T1, Any] {
-              override def apply(v1: T1): Any = colDef1.asInstanceOf[TypedColumnDef[Any]](v1)
-            }
-            select1 += accessor
-          }
-        } else if (colDef2 == null) {
-          throw new IllegalArgumentException("Unknown column " + colName.name)
-        } else {
-          val accessor = new ColumnAccessor[T2, Any] {
-            override def apply(v1: T2): Any = colDef2.asInstanceOf[TypedColumnDef[Any]](v1)
-          }
-          select2 += accessor
+          case (null, null) =>
+            throw new IllegalArgumentException("Unknown column " + colName.name)
         }
+    }
+
+    val select1 = t1Cols.values.map { colDef =>
+      new ColumnAccessor[T1, Any] {
+        override def apply(v1: T1): Any = colDef.asInstanceOf[TypedColumnDef[Any]].get(v1)
+      }
+    }
+
+    val select2 = t2Cols.values.map { colDef =>
+      new ColumnAccessor[T2, Any] {
+        override def apply(v1: T2): Any = colDef.asInstanceOf[TypedColumnDef[Any]].get(v1)
+      }
     }
     val selectFunc1 = (t1: T1) => new Row(select1.map(_(t1)).toArray)
     val selectFunc2 = (t1: T2) => new Row(select2.map(_(t1)).toArray)
@@ -51,9 +61,10 @@ class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]
     val d1 = tb1.data.select(selectFunc1)
     val d2 = tb2.data.select(selectFunc2)
 
-    val newCols = info.allRequiredColumnNames.zipWithIndex.map {
+    val allColumns = t1Cols.keysIterator ++ t2Cols.keysIterator
+    val newCols = allColumns.zipWithIndex.map {
       case (name, i) => new RowColumnDef(name, i)
-    }
+    }.toSeq
     val resultSchema = new DefaultSchema(newCols: _*)
     val joinExtractor = if (jointPoint != null) {
       compileCondition[Row](jointPoint, resultSchema)
@@ -64,11 +75,11 @@ class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]
     }
 
     val crossProduct = d1.join(d2, (r: Row) => joinExtractor.apply(r))
-    val newTable = tb1.createTable(crossProduct, new DefaultSchema(newCols: _*))
+    val newTable = tb1.createTable(name + ".temp", crossProduct, new DefaultSchema(newCols: _*))
     newTable.compile(stmt)
   }
 
-  override def as(alias: Symbol): Table = ???
+  override def as(alias: Symbol): Table = new JoinedRowBasedTable[T1, T2](tb1, tb2, alias.name)
 }
 
 class JoinedRowBasedCompiler(table: JoinedRowBasedTable[_, _])

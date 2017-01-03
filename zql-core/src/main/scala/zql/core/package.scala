@@ -59,8 +59,22 @@ package object core {
   def countDistinct(cols: Column*) = new CountDistinct(cols: _*)
 
   //Column definitions
+
   implicit def symToReflectionColumnDef[ROW: ClassTag](sym: Symbol): ReflectionColumnDef[ROW] = {
     new ReflectionColumnDef[ROW](sym)
+  }
+
+  implicit class ColumnHelper(val sc: StringContext) extends AnyVal {
+    def c(args: Any*): DataColumn = {
+      val strings = sc.parts.iterator
+      val expressions = args.iterator
+      var sb = new StringBuilder(strings.next)
+      while (strings.hasNext) {
+        sb.append(expressions.next)
+        sb.append(strings.next)
+      }
+      new UntypedColumn(Symbol(sb.toString()))
+    }
   }
 
 }

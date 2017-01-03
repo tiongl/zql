@@ -11,6 +11,11 @@ abstract class Table {
 
   def as(alias: Symbol): Table
 
+  def getPrefixes() = alias match {
+    case null => List(name)
+    case _ => List(name, alias)
+  }
+
   def compile(stmt: Statement): Executable[Table]
 
   def collectAsList(): List[Any]
@@ -24,40 +29,6 @@ abstract class Table {
       builder.append(" AS " + alias)
     }
     builder.toString
-  }
-}
-
-class AliasSchema(schema: Schema, alias: Symbol) extends Schema {
-
-  val properPrefix = alias.name + "."
-
-  val prefix = alias.name + "_"
-
-  val allColumns = schema.allColumns().map(c => c.rename(Symbol(prefix + c.name.name)))
-
-  override def resolveColumnDef(symbol: Symbol) = {
-    if (columnMap.contains(symbol)) {
-      columnMap(symbol)
-    } else if (symbol.name.startsWith(prefix)) {
-      val colName = Symbol(symbol.name.substring(prefix.length))
-      val dotName = Symbol(properPrefix + colName.name)
-      if (columnMap.contains(colName)) {
-        columnMap(colName)
-      } else if (columnMap.contains(dotName)) {
-        columnMap(dotName)
-      } else {
-        throw new IllegalArgumentException("Unknown column " + symbol.name)
-      }
-    } else throw new IllegalArgumentException("Unknown column " + symbol.name)
-  }
-}
-
-object AliasSchema {
-  def apply(schema: Schema, alias: Symbol) = schema match {
-    case as: AliasSchema =>
-      throw new IllegalArgumentException("Realiasing is not supported")
-    case _ =>
-      new AliasSchema(schema, alias)
   }
 }
 

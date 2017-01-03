@@ -6,11 +6,9 @@ import zql.sql.DefaultSqlGenerator
 
 class SqlGeneratorTest extends FlatSpec with Matchers with PersonExample {
 
-  val table: Table = ListTable[Person]('id, 'firstName, 'lastName, 'age)(data)
+  val table: Table = ListTable[Person]("person", 'id, 'firstName, 'lastName, 'age)(persons)
 
   val option = new CompileOption
-
-  println("Table name = " + table.name + " table name = " + table.name)
 
   def generateAndMatch(statement: StatementWrapper, sql: String) = {
     //val results = statement.statement.toSql()
