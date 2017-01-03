@@ -18,14 +18,6 @@ The features of ZQL include:
 
 -   Extensible execution layer that can be used to extend the coverage of persistent and aggregation system
 
-## Below is the design for ZQL.
-<kdb>
-![Design](docs/design.png?raw=true "Title")
-</kbd>
-
-The main ZQL DSL are decoupled from the runtime that support the execution of the query expresssion. The runtime for different aggregation technology can be implemented and added easily. The separation allow the DSL to be truly aggregation technology agnostic.
-
-** Currently only List and Spark runtime are implemented.
 ##Example
 
 ```scala
@@ -45,20 +37,20 @@ The main ZQL DSL are decoupled from the runtime that support the execution of th
       new Person(4, "Anna", "Doe", 10, 1) //
     ).toList
 
-    val listTable = new ListTable(data, schema)
+    val personTable = new ListTable(data, schema)
 
     /** Example 1 **/
-    val statement1 = listTable select (*) where ('firstName === "John") limit (5) //pick first 5 johns
+    val statement1 = select (*) from personTable where ('firstName === "John") limit (5) //pick first 5 johns
 
     val resultTable1 = statement1.compile.execute()
 
     /** Example 2 **/
-    val statement2 = resultTable1 select ('firstName, 'age) //select the firstname, age column
+    val statement2 = select ('firstName, 'age) from resultTable1 //select the firstname, age column
 
     val resultTable2 = statement2.compile.execute()
 
     /** Example 3 **/
-    val statement3 = resultTable2 select (sum('age)) //sum the age
+    val statement3 = select (sum('age)) from resultTable2 //sum the age
 
     val resultTable3 = statement3.compile.execute()
 
@@ -66,15 +58,31 @@ The main ZQL DSL are decoupled from the runtime that support the execution of th
 ```
  
 
+
+## Below is the design for ZQL.
+<kdb>
+![Design](docs/design.png?raw=true "Title")
+</kbd>
+
+The main ZQL DSL are decoupled from the runtime that support the execution of the query expresssion. The runtime for different aggregation technology can be implemented and added easily. The separation allow the DSL to be truly aggregation technology agnostic.
+
+** Currently only List (ListTable) and Spark (RDDTable and SparkSQLTable) runtime are implemented. More will come soon.
+
 # Supported Syntax
 Currently the DSL support the common semantic in SQL
 
 - Select ... where ... group by ... having ... order by ... limit ...
-
-- UDF support include count, sum, 
+- Join support (for tables of same runtime)
+- UDF support include count, sum
 
 # Getting started
-TODO
+
+As ZQL is a Scala-DSL, we assume you will be using it with Scala. Simply add the following to Scala build.sbt
+
+```scala
+	libraryDependencies += "zql" %% "zql-core" % "1.0.0-alpha1" % "provided",
+	libraryDependencies += "zql" %% "zql-spark" % "1.0.0-alpha1" % "provided", //for spark runtime
+```
 
 
 
