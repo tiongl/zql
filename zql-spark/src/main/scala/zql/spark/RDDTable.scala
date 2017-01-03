@@ -42,22 +42,33 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
   override def withOption(option: CompileOption): RowBasedData[T] = new RDDData[T](rdd, option)
 
   override def distinct(): RowBasedData[T] = rdd.distinct()
-}
 
-class RDDTable[ROW: ClassTag](schema: RowBasedSchema[ROW], rdd: RDD[ROW]) extends RowBasedTable(schema) {
-
-  val name = getClass.getCanonicalName + "-" + rdd
-  override def data: RowBasedData[ROW] = new RDDData(rdd)
-
-  override def createTable[T: ClassManifest](rowBased: RowBasedData[T], newSchema: RowBasedSchema[T]): RowBasedTable[T] = {
-    val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
-    new RDDTable[T](newSchema, rdd)
+  override def join(other: RowBasedData[Row], jointPoint: (Row) => Boolean): RowBasedData[Row] = other match {
+    case rddData: RDDData[Row] =>
+      rdd.asInstanceOf[RDD[Row]].cartesian[Row](rddData.rdd).map {
+        case (r1, r2) => new Row(r1.data ++ r2.data)
+      }.filter(jointPoint.apply(_))
+    case _ =>
+      throw new IllegalArgumentException("Unsupported join type " + other.toString)
   }
 }
 
+class RDDTable[ROW: ClassTag](name: String, schema: Schema, rdd: RDD[ROW], val alias: String = null) extends RowBasedTable[ROW](name, schema) {
+
+  override def data: RowBasedData[ROW] = new RDDData(rdd)
+
+  override def createTable[T: ClassManifest](name: String, rowBased: RowBasedData[T], newSchema: Schema): RowBasedTable[T] = {
+    val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
+    new RDDTable[T](name, newSchema, rdd)
+  }
+
+  override def as(alias: Symbol): Table = new RDDTable[ROW](name, schema, rdd, alias.name)
+
+}
+
 object RDDTable {
-  def apply[ROW: ClassTag](cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {
-    val schema = new RowBasedSchema[ROW](cols: _*)
-    new RDDTable[ROW](schema, data)
+  def apply[ROW: ClassTag](name: String, cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {
+    val schema = new DefaultSchema(cols: _*)
+    new RDDTable[ROW](name, schema, data)
   }
 }

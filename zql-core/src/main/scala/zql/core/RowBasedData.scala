@@ -1,7 +1,11 @@
 package zql.core
 
+import java.util.UUID
+
+import org.slf4j.LoggerFactory
 import zql.core.util.Utils.SeqOrdering
 
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.Try
 
@@ -18,9 +22,12 @@ trait RowBasedData[ROW] {
   def asList: List[ROW]
   def isLazy: Boolean
   def distinct(): RowBasedData[ROW]
+  def join(other: RowBasedData[Row], jointPoint: (Row) => Boolean): RowBasedData[Row]
 }
 
-class RowBasedSchema[ROW](val allColumns: ColumnDef*) extends Schema
+class DefaultSchema(val allColumns: ColumnDef*) extends Schema {
+  override def toString = "DefaultSchema[" + allColumns.map(_.name.name).mkString(",") + "]"
+}
 
 abstract class Getter {
   def get(obj: Any): Any
@@ -33,14 +40,33 @@ case class LazyField(className: String, fieldName: String) extends Getter {
 }
 
 case class LazyMethod(className: String, methodName: String) extends Getter {
-  @transient lazy val method = Class.forName(className).getMethod(methodName)
+  @transient lazy val method = {
+    val clazz = Class.forName(className)
+    if (clazz == null) {
+      throw new IllegalStateException("Cannot find class " + className)
+    } else {
+      clazz.getMethod(methodName)
+    }
+  }
   def get(obj: Any) = method.invoke(obj)
 }
 
-abstract class TypedColumnDef[T](name: Symbol) extends ColumnDef(name) with ((T) => Any)
+abstract class TypedColumnDef[R](name: Symbol) extends ColumnDef(name) {
+  def get(v1: R): Any
+}
+
+class FuncColumnDef[R](name: Symbol, func: (R) => Any) extends TypedColumnDef[R](name) {
+  override def get(v1: R): Any = func.apply(v1)
+
+  override def rename(newName: Symbol): ColumnDef = new FuncColumnDef[R](newName, func)
+}
 
 class RowColumnDef(name: Symbol, i: Int) extends TypedColumnDef[Row](name) {
-  override def apply(v1: Row): Any = v1.data(i)
+  override def get(v1: Row): Any = {
+    v1.data(i)
+  }
+  override def rename(newName: Symbol) = new RowColumnDef(newName, i)
+  override def toString = s"RowColumnDef(${name},${i})"
 }
 
 class ReflectionColumnDef[T: ClassTag](name: Symbol) extends TypedColumnDef[T](name) {
@@ -61,42 +87,97 @@ class ReflectionColumnDef[T: ClassTag](name: Symbol) extends TypedColumnDef[T](n
     }
   }
 
-  override def apply(v1: T): Any = getter.get(v1)
+  override def get(v1: T): Any = getter.get(v1)
+
+  override def rename(newName: Symbol): ColumnDef = new FuncColumnDef[T](newName, ((v1: T) => getter.get(v1)))
 }
 
-abstract class RowBasedTable[T](schema: RowBasedSchema[T]) extends TypedTable[T](schema) {
+abstract class RowBasedTable[R](
+    val name: String,
+    val schema: Schema
+) extends Table {
+  def id = UUID.randomUUID().toString
 
-  def data: RowBasedData[T]
+  override def toString = name + id
+
+  def data: RowBasedData[R]
 
   override def compile(stmt: Statement): Executable[Table] = {
-    new RowBasedCompiler(this, schema).compile(stmt)
+    getCompiler.compile(stmt, schema)
   }
 
-  def createTable[T: ClassTag](rowBased: RowBasedData[T], newShema: RowBasedSchema[T]): RowBasedTable[T]
+  def createTable[T: ClassTag](newName: String, rowBased: RowBasedData[T], newShema: Schema): RowBasedTable[T]
 
   def collectAsList() = data.asList
 
+  def getCompiler[TB <: Table]() = new RowBasedCompiler[R](this).asInstanceOf[Compiler[TB]]
+
+  override def join(table: Table): JoinedTable = table match {
+    case rbt: RowBasedTable[_] =>
+      new JoinedRowBasedTable(this, rbt)
+    case _ =>
+      throw new IllegalArgumentException("Cannot join rowbased table with " + table + " of type " + table.getClass)
+  }
 }
 
 /** allow accessing a column from type T **/
 abstract class ColumnAccessor[ROW, +T]() extends ((ROW) => T) with Serializable
 
 abstract class ConditionAccessor[ROW]() extends ColumnAccessor[ROW, Boolean]
-
-class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[ROW]) extends Compiler[RowBasedTable[Row]] {
-
-  case class StatementInfo(stmt: Statement) {
-    val expandedSelects = stmt.select.flatMap {
-      case mc: MultiColumn =>
-        mc.toColumns(schema)
-      case c => Seq(c)
-    }
-
-    val groupByIndices = expandedSelects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
+case class StatementInfo(stmt: Statement, schema: Schema) {
+  val expandedSelects = stmt.select.flatMap {
+    case mc: MultiColumn =>
+      mc.toColumns(schema)
+    case c => Seq(c)
   }
 
-  def validate(stmt: Statement): StatementInfo = {
-    val stmtInfo = new StatementInfo(stmt)
+  val groupByIndices = expandedSelects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray
+  val newColumns = expandedSelects.zipWithIndex.map {
+    case (col, index) => new RowColumnDef(col.getResultName, index)
+  }
+  val resultSchema = new DefaultSchema(newColumns: _*)
+
+  val selectColumnNames = mutable.LinkedHashSet(expandedSelects.flatMap(_.requiredColumns): _*).toList //unique selects
+
+  val allRequiredColumnNames = {
+    val columns = mutable.LinkedHashSet(selectColumnNames: _*) //for dedupling
+    if (stmt.from != null) {
+      stmt.from match {
+        case jt: JoinedTable =>
+          if (jt.jointPoint != null) {
+            columns ++= jt.jointPoint.requiredColumns
+          }
+        case _ =>
+        //do nothing
+      }
+    }
+    if (stmt.where != null) {
+      columns ++= stmt.where.requiredColumns
+    }
+    if (stmt.groupBy != null) {
+      columns ++= stmt.groupBy.flatMap(_.requiredColumns)
+    }
+    if (stmt.having != null) {
+      columns ++= stmt.having.requiredColumns
+    }
+    if (stmt.orderBy != null) {
+      columns ++= stmt.orderBy.flatMap(_.requiredColumns)
+    }
+    columns.toList
+  }
+
+  val prefixes = if (stmt.from != null) stmt.from.getPrefixes() else List()
+
+}
+
+object RowBasedCompiler {
+  def toRowFunc[ROW](selects: Seq[ColumnAccessor[ROW, _]]) = (row: ROW) => new Row(selects.map(s => s.apply(row)).toArray)
+}
+
+class RowBasedCompiler[ROW](val table: RowBasedTable[ROW]) extends Compiler[RowBasedTable[Row]] with AccessorCompiler {
+
+  def validate(info: StatementInfo) = {
+    val stmt = info.stmt
     if (stmt.groupBy != null) {
       val aggFunctions = stmt.select.filter(_.isInstanceOf[AggregateFunction[_]])
       if (aggFunctions.size == 0) {
@@ -106,61 +187,59 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
       //make sure groupby is part of selects
       //TODO: determine whether this is really needed
       val groupByNames = stmt.groupBy.map(_.name).toSet
-      val selectNames = stmtInfo.expandedSelects.map(_.name).toSet
+      val selectNames = info.expandedSelects.map(_.name).toSet
       if (!groupByNames.subsetOf(selectNames)) {
         throw new IllegalArgumentException("Group by must be present in selects: " + groupByNames.diff(selectNames))
       }
       //make sure all are aggregation function
-      stmtInfo.expandedSelects.map {
+      info.expandedSelects.map {
         col =>
           if (!groupByNames.contains(col.name) && !col.isInstanceOf[AggregateFunction[_]]) {
             throw new IllegalArgumentException("Select must be aggregate function if it is not group by")
           }
       }
-    } else if (stmtInfo.groupByIndices.size > 0) {
-      if (stmtInfo.expandedSelects.size > stmtInfo.groupByIndices.size) {
+    } else if (info.groupByIndices.size > 0) {
+      if (info.expandedSelects.size > info.groupByIndices.size) {
         throw new IllegalArgumentException("All select must be aggregate function (or use first() udf)")
       }
     }
-    stmtInfo
   }
 
-  def compile(stmt: Statement, option: CompileOption): Executable[RowBasedTable[Row]] = {
+  def compile(stmt: Statement, schema: Schema, option: CompileOption): Executable[RowBasedTable[Row]] = {
     import zql.core.ExecutionPlan._
-    val stmtInfo = validate(stmt)
-
-    val groupByIndices = stmtInfo.groupByIndices
-    val newColumns = stmtInfo.expandedSelects.zipWithIndex.map {
-      case (col, index) => new RowColumnDef(col.getResultName, index)
-    }
-    val resultSchema = new RowBasedSchema[Row](newColumns: _*)
-    val rowBased = table.data.withOption(option)
+    val stmtInfo = new StatementInfo(stmt, schema)
+    validate(stmtInfo)
+    val selects = stmtInfo.expandedSelects.map(c => compileColumn[ROW](c, schema, "SELECT", stmtInfo.prefixes))
+    val filterAccessor: ColumnAccessor[ROW, Boolean] = if (stmt.where != null) compileCondition[ROW](stmt.where, schema) else null
+    val groupByAccessors = if (stmt.groupBy != null) stmt.groupBy.map(compileColumn[ROW](_, schema)) else null
+    val resultSchema = stmtInfo.resultSchema
+    val havingExtractor = if (stmt.having != null) compileCondition[Row](stmt.having, stmtInfo.resultSchema) else null
     val execPlan = plan("Query") {
       first("Filter the data") {
+        val rowBased = table.data.withOption(option)
         val filteredData = if (stmt.where != null) {
-          val filterAccesor = compileCondition[ROW](stmt.where, schema)
-          rowBased.withOption(option).filter((row: ROW) => filterAccesor(row))
+          rowBased.withOption(option).filter((row: ROW) => filterAccessor(row))
         } else rowBased
+        //        println("Filtered data got " + filteredData.asList.mkString("\n"))
         filteredData
       }.next("Grouping the data") {
         filteredData =>
-          val selects = stmtInfo.expandedSelects.map(c => compileColumn[ROW](c, schema, "SELECT"))
-          val selectFunc = (row: ROW) => new Row(selects.map(_(row)).toArray)
+          val groupByIndices = stmtInfo.groupByIndices
+          val selectFunc = RowBasedCompiler.toRowFunc(selects)
           //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
-
           val groupedProcessData = if (stmt.groupBy != null) {
             //make sure group columns is in the expanded selects
             val groupByAccessors = stmt.groupBy.map(compileColumn[ROW](_, schema))
             val groupByFunc = (row: ROW) => groupByAccessors.map(_(row))
             val groupedData = filteredData.groupBy(groupByFunc, selectFunc, groupByIndices).map(_.normalize)
-
+            //            println("Grouped Data got " + filteredData)
             val havingData = if (stmt.having != null) {
-              val havingExtractor = compileCondition[Row](stmt.having, resultSchema)
               val havingFilter = (row: Row) => havingExtractor(row)
               groupedData.filter(havingFilter)
             } else {
               groupedData
             }
+            //            println("Having data got " + filteredData.asList.mkString("\n"))
             havingData
           } else if (groupByIndices.size > 0) { //this will trigger group by all
             val selected = filteredData.select(selectFunc)
@@ -168,6 +247,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
           } else {
             filteredData.map { selectFunc }
           }
+          //          println("Grouped process data got " + groupedProcessData.asList.mkString("\n"))
           groupedProcessData
       }.next("Distinct") {
         groupedProcessData =>
@@ -201,23 +281,20 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
           } else orderedData
       }.next("Return the table") {
         groupedProcessData =>
-          table.createTable(groupedProcessData, resultSchema)
+          table.createTable(table.name + "_result", groupedProcessData, resultSchema)
       }
     }
     execPlan
   }
+}
 
-  def compileSelects[ROW](selects: Seq[Column], schema: RowBasedSchema[ROW]): Seq[(Symbol, ColumnAccessor[ROW, _])] = {
-    selects.flatMap {
-      case ac: MultiColumn =>
-        ac.toColumns(schema).map(col =>
-          (col.name, compileColumn[ROW](col, schema)))
-      case c: Column =>
-        Seq((c.getResultName, compileColumn[ROW](c, schema, "SELECT")))
-    }
-  }
+trait AccessorCompiler {
 
-  def compileCondition[ROW](cond: Condition, schema: RowBasedSchema[ROW]): ColumnAccessor[ROW, Boolean] = {
+  def table: Table
+
+  val logger = LoggerFactory.getLogger(getClass())
+  //Conditions
+  def compileCondition[ROW](cond: Condition, schema: Schema): ColumnAccessor[ROW, Boolean] = {
     cond match {
       case bc: BinaryCondition =>
         val a = compileCondition[ROW](bc.a, schema)
@@ -241,13 +318,13 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     }
   }
 
-  def compileOrdering(orderSpecs: Seq[OrderSpec], schema: RowBasedSchema[Row]): (Seq[ColumnAccessor[Row, _]], Ordering[Seq[Any]]) = {
+  def compileOrdering(orderSpecs: Seq[OrderSpec], schema: Schema): (Seq[ColumnAccessor[Row, _]], Ordering[Seq[Any]]) = {
     val accessors = orderSpecs.map(compileColumn[Row](_, schema))
     val ordering = new SeqOrdering(orderSpecs.map(_.ascending).toArray)
     (accessors, ordering)
   }
 
-  def compileColumn[ROW](col: Column, schema: RowBasedSchema[ROW], context: String = ""): ColumnAccessor[ROW, _] = {
+  def compileColumn[ROW](col: Column, schema: Schema, context: String = "", prefixes: List[String] = List()): ColumnAccessor[ROW, _] = {
 
     val results = col match {
       case mc: MultiColumn =>
@@ -256,16 +333,19 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
           override def apply(v1: ROW) = null
         }
       case cond: Condition =>
-        compileCondition(cond, schema)
+        compileCondition[ROW](cond, schema)
       case lc: LiteralColumn[_] =>
         new ColumnAccessor[ROW, Any] {
           override def apply(v1: ROW) = lc.value
         }
-      case c: DataColumn[_] =>
-        schema.columnMap(c.name) match {
+      case c: DataColumn =>
+        logger.debug("Resolving column " + c.name)
+        schema.resolveColumnDef(c.name, prefixes) match {
           case colDef: TypedColumnDef[ROW] =>
+            logger.debug("Resolved " + colDef.name)
+            //            println("Resolved " + colDef.name + " = " + colDef)
             new ColumnAccessor[ROW, Any] {
-              override def apply(v1: ROW): Any = colDef(v1)
+              override def apply(v1: ROW): Any = colDef.get(v1)
             }
           case uc =>
             throw new IllegalArgumentException("Unknown column " + c.getResultName + " type " + uc)
@@ -285,7 +365,7 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
         new ColumnAccessor[ROW, Any] {
           val value: Any = context match {
             case "SELECT" =>
-              val info = new StatementInfo(sq.statement.statement())
+              val info = new StatementInfo(sq.statement.statement(), schema)
               if (info.expandedSelects.size != 1) {
                 throw new IllegalArgumentException("Expect single column subquery")
               }
@@ -305,5 +385,5 @@ class RowBasedCompiler[ROW](table: RowBasedTable[ROW], schema: RowBasedSchema[RO
     }
     results
   }
-
 }
+

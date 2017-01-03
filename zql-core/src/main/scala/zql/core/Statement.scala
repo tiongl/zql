@@ -1,7 +1,7 @@
 package zql.core
 
 import zql.list.ListTable
-import zql.sql.SqlGenerator
+import zql.sql.{ DefaultSqlGenerator }
 
 import scala.collection.mutable
 
@@ -9,12 +9,10 @@ trait Executable[+T] {
   def execute(): T
 }
 
-class CompileOption extends mutable.HashMap[String, String] {
-
-}
+class CompileOption extends mutable.HashMap[String, String]
 
 trait Compiler[T <: Table] {
-  def compile(stmt: Statement, option: CompileOption = new CompileOption): Executable[T]
+  def compile(stmt: Statement, schema: Schema, option: CompileOption = new CompileOption): Executable[T]
 }
 
 trait Compilable {
@@ -24,43 +22,36 @@ trait Compilable {
 trait StatementWrapper extends Compilable {
   def statement(): Statement
   def compile = statement.compile
-  //  override def requiredColumns = Set()
-  //  override val name = Symbol(statement.toSql("test"))
 }
 
-class StatementEnd(val statement: Statement) extends StatementWrapper
-
 trait Limitable extends StatementWrapper {
-  def limit(count: Int): StatementEnd = limit(0, count)
-  def limit(offset: Int, count: Int): StatementEnd = new StatementEnd(statement.limit((offset, count)))
+  class Limited(val statement: Statement) extends StatementWrapper
+  def limit(count: Int): Limited = limit(0, count)
+  def limit(offset: Int, count: Int): Limited = new Limited(statement.limit((offset, count)))
 }
 
 trait Orderable extends Limitable {
+  class Ordered(val statement: Statement) extends Limitable
   def orderBy(columns: OrderSpec*) = new Ordered(statement.orderBy(columns))
 }
 
-class Ordered(val statement: Statement) extends Limitable
-
 trait Havingable extends Orderable {
+  class Haved(val statement: Statement) extends Orderable
   def having(condition: Condition): Haved = new Haved(this.statement.having(condition))
 }
 
-class Haved(val statement: Statement) extends Orderable
-
 trait Groupable extends Orderable {
+  class Grouped(val statement: Statement) extends Havingable with Orderable
   def groupBy(groupBys: Column*): Grouped = new Grouped(this.statement.groupBy(groupBys))
 }
 
-class Grouped(val statement: Statement) extends Havingable with Orderable
-
-trait Whereable extends StatementWrapper {
+trait Whereable extends Groupable {
+  class Whered(val statement: Statement) extends Groupable
   def where(condition: Condition): Whered = new Whered(statement.where(condition))
 }
 
-class Whered(val statement: Statement) extends Groupable
-
 trait Fromable extends StatementWrapper {
-  class Fromed(val statement: Statement) extends Groupable with Whereable
+  class Fromed(val statement: Statement) extends Whereable
   def from(table: Table): Fromed = new Fromed(statement.from(table))
 }
 
@@ -128,11 +119,11 @@ case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
 
   def compile = from match {
     case null =>
-      ListTable[Any]('hashCode)(List(1)).compile(this) //just a dummy table
+      ListTable[Any]("test", 'hashCode)(List(1)).compile(this) //just a dummy table
     case tb: Table =>
       tb.compile(this)
   }
 
-  def toSql() = new SqlGenerator().generate(this)
+  def toSql() = new DefaultSqlGenerator().generateSql(this)
 }
 

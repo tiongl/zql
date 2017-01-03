@@ -14,9 +14,8 @@ package object spark {
     def partitionBy = states(PARTITIONBY).asInstanceOf[Seq[Column]]
   }
 
-  class Partitioned(stmt: Statement) extends StatementEnd(stmt)
-
   class Partitionable(val statement: Statement) extends StatementWrapper {
+    class Partitioned(val statement: Statement) extends Limitable
     def partitionBy(columns: Column*) = new Partitioned(new PartitionStatement(statement.states).partitionBy(columns))
   }
 

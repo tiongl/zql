@@ -36,8 +36,10 @@ package object core {
 
   implicit def statementAsTable(stmt: StatementWrapper): Table = stmt.statement().compile.execute()
 
+  implicit def tableSeqToJoinedTable(tuple: Tuple2[Table, Table]) = tuple._1.join(tuple._2)
+
   //purposely not support distinct this way as implementation is complicated
-  //  implicit def distinct(cols: Column*): Distinct = new Distinct(cols)
+  //  def distinct(cols: Column*): Distinct = new Distinct(cols: _*)
 
   def sum(col: UntypedColumn): Sum = sum(new NumericDataColumn(col.name)) //upgrade to numeric column
 
@@ -57,8 +59,22 @@ package object core {
   def countDistinct(cols: Column*) = new CountDistinct(cols: _*)
 
   //Column definitions
+
   implicit def symToReflectionColumnDef[ROW: ClassTag](sym: Symbol): ReflectionColumnDef[ROW] = {
     new ReflectionColumnDef[ROW](sym)
+  }
+
+  implicit class ColumnHelper(val sc: StringContext) extends AnyVal {
+    def c(args: Any*): DataColumn = {
+      val strings = sc.parts.iterator
+      val expressions = args.iterator
+      var sb = new StringBuilder(strings.next)
+      while (strings.hasNext) {
+        sb.append(expressions.next)
+        sb.append(strings.next)
+      }
+      new UntypedColumn(Symbol(sb.toString()))
+    }
   }
 
 }

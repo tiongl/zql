@@ -13,21 +13,33 @@ class SparkSqlTableTest extends TableTest {
     new Row(data)
   }
 
+  override def executeAndMatch(statement: StatementWrapper, rows: List[Row]): Assertion = {
+    println("Running sql: " + statement.statement().toSql())
+    super.executeAndMatch(statement, rows)
+  }
+
   val spark = SparkSession
     .builder()
     .appName("SparkSqlTableTest")
     .config("spark.master", "local[4]")
     .config("spark.driver.allowMultipleContexts", "true")
+    .config("spark.sql.crossJoin.enabled", "true")
     .getOrCreate()
 
   //initialize
   {
-    val rdd = spark.sqlContext.sparkContext.parallelize(data)
-    val df = spark.createDataFrame(rdd)
-    df.createOrReplaceTempView("person")
+    val personRdd = spark.sqlContext.sparkContext.parallelize(persons)
+    val departmentRdd = spark.sqlContext.sparkContext.parallelize(departments)
+    val personDf = spark.createDataFrame(personRdd)
+    personDf.createOrReplaceTempView("person")
+    val departmentDf = spark.createDataFrame(departmentRdd)
+    departmentDf.createOrReplaceTempView("department")
+
   }
 
-  val table = new SparkSQLTable(spark, "person")
+  val personTable = new SparkSQLTable(spark, "person")
+
+  val departmentTable = new SparkSQLTable(spark, "department")
 
   override def supportSelectLimitOffset = {
     //TODO: this is never supported. we probably should do detection in compile phase to throw exception on it
