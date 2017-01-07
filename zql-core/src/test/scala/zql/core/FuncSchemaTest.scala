@@ -2,28 +2,19 @@ package zql.core
 
 import zql.list.ListTable
 
-class FuncSchemaTest extends TableTest {
-  val personTable = ListTable.create[Person](
-    "person",
-    ('id, _.id),
-    ('firstName, _.firstName),
-    ('lastName, _.lastName),
-    ('age, _.age),
-    ('departmentId, _.departmentId)
-  )(persons)
+class FuncSchemaTest extends ListTableTest {
 
-  val departmentTable = ListTable.create[Department](
-    "department",
-    ('id, _.id),
-    ('name, _.name)
-  )(departments)
+  override def personSchema = new ReflectedSchema[Person]("person") {
+    i func('id, _.id)
+    i func('firstName, _.firstName)
+    i func('lastName, _.lastName)
+    i func('age, _.age)
+    i func('departmentId, _.departmentId)
+  }
 
-  val table2 = ListTable.create[Person](
-    "person",
-    ('id, _.id),
-    ('fullName, (p: Person) => p.firstName + p.lastName),
-    ('age, _.age),
-    ('departmentId, _.departmentId)
+  override def departmentSchema = new ReflectedSchema[Department]("department") {
+    i func('id, _.id)
+    i func('name, _.name)
+  }
 
-  )(persons)
 }

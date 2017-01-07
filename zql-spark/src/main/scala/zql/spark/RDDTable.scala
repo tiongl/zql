@@ -3,7 +3,6 @@ package zql.spark
 import org.apache.spark.rdd.RDD
 import zql.core
 import zql.core._
-
 import scala.reflect.ClassTag
 
 class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new CompileOption()) extends RowBasedData[T] {
@@ -20,7 +19,7 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
 
   override def filter(filter: (T) => Boolean): RowBasedData[T] = rdd.filter(filter)
 
-  override def groupBy(keyFunc: (T) => Seq[Any], valueFunc: (T) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row] = {
+  override def groupBy(keyFunc: (T) => Row, valueFunc: (T) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row] = {
     val tuples = rdd.map { row => (keyFunc(row), valueFunc(row)) }
     tuples.reduceByKey(_.aggregate(_, aggregatableIndices)).map(_._2)
   }
@@ -29,7 +28,7 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
 
   override def select(r: (T) => Row): RowBasedData[Row] = rdd.map(r)
 
-  override def sortBy[K](keyFunc: (T) => K, ordering: Ordering[K], classTag: ClassTag[K]): RowBasedData[T] = {
+  override def sortBy(keyFunc: (T) => Row, ordering: Ordering[Row], classTag: ClassTag[Row]): RowBasedData[T] = {
     rdd.sortBy(keyFunc)(ordering, classTag)
   }
 
@@ -53,22 +52,18 @@ class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new Comp
   }
 }
 
-class RDDTable[ROW: ClassTag](name: String, schema: Schema, rdd: RDD[ROW], val alias: String = null) extends RowBasedTable[ROW](name, schema) {
+class RDDTable[ROW: ClassTag](schema: Schema, rdd: RDD[ROW]) extends RowBasedTable[ROW](schema) {
 
   override def data: RowBasedData[ROW] = new RDDData(rdd)
 
-  override def createTable[T: ClassManifest](name: String, rowBased: RowBasedData[T], newSchema: Schema): RowBasedTable[T] = {
+  override def createTable[T: ClassManifest](newSchema: Schema, rowBased: RowBasedData[T]): RowBasedTable[T] = {
     val rdd = rowBased.asInstanceOf[RDDData[T]].rdd
-    new RDDTable[T](name, newSchema, rdd)
+    new RDDTable[T](newSchema, rdd)
   }
 
-  override def as(alias: Symbol): Table = new RDDTable[ROW](name, schema, rdd, alias.name)
+  override def as(alias: Symbol): Table = new RDDTable[ROW](schema.as(alias), rdd)
 
 }
 
 object RDDTable {
-  def apply[ROW: ClassTag](name: String, cols: TypedColumnDef[ROW]*)(data: RDD[ROW]) = {
-    val schema = new DefaultSchema(cols: _*)
-    new RDDTable[ROW](name, schema, data)
-  }
 }

@@ -9,7 +9,7 @@ trait Executable[+T] {
   def execute(): T
 }
 
-class CompileOption extends mutable.HashMap[String, String]
+class CompileOption extends mutable.HashMap[String, Object]
 
 trait Compiler[T <: Table] {
   def compile(stmt: Statement, schema: Schema, option: CompileOption = new CompileOption): Executable[T]
@@ -119,7 +119,8 @@ case class Statement(val states: Map[String, Any] = Map()) extends Compilable {
 
   def compile = from match {
     case null =>
-      ListTable[Any]("test", 'hashCode)(List(1)).compile(this) //just a dummy table
+      val schema = new SimpleSchema("test")
+      new ListTable[Any](schema, List(1)).compile(this) //just a dummy table
     case tb: Table =>
       tb.compile(this)
   }

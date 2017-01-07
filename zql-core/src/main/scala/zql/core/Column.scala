@@ -3,6 +3,8 @@ package zql.core
 import zql.core.util.Utils
 import zql.sql.{ SqlGenerator, DefaultSqlGenerator }
 
+import scala.reflect.ClassTag
+
 /** a generic column **/
 abstract class Column extends Serializable {
 
@@ -12,6 +14,8 @@ abstract class Column extends Serializable {
     alias = name
     this
   }
+
+  def dataType: Class[_]
 
   def castToNumeric: NumericColumn = ???
 
@@ -45,7 +49,9 @@ abstract class Column extends Serializable {
 }
 
 /** column with a type **/
-abstract class TypedColumn[T] extends Column
+abstract class TypedColumn[T: ClassTag] extends Column {
+  val dataType = scala.reflect.classTag[T].runtimeClass
+}
 
 /** just a tagging interface for numeric column **/
 trait NumericColumn extends Column
@@ -358,7 +364,7 @@ object NumericColumn {
   }
 }
 
-abstract class CompositeColumn[T](val cols: Column*) extends TypedColumn[T] {
+abstract class CompositeColumn[T: ClassTag](val cols: Column*) extends TypedColumn[T] {
   lazy val requiredColumns = cols.map(_.requiredColumns).reduce(_ ++ _)
 }
 
@@ -441,7 +447,7 @@ class GreaterThanEquals(a: NumericColumn, b: NumericColumn) extends EqualityCond
   def evaluate(a: Any, b: Any) = Utils.>=(a, b)
 }
 
-abstract class BinaryFunction[T](val funcName: String, val a: Column, val b: Column) extends Function[T](funcName, a, b) {
+abstract class BinaryFunction[T: ClassTag](val funcName: String, val a: Column, val b: Column) extends Function[T](funcName, a, b) {
   def evaluate(a: Any, b: Any): T
   override def toSql(gen: SqlGenerator) = {
     val aSql = gen.visit(a, null)
@@ -471,7 +477,7 @@ class Divide(a: NumericColumn, b: NumericColumn) extends BinaryFunction[Any]("/"
 /********************/
 trait DataColumn extends Column with OrderSpec
 
-abstract class TypedDataColumn[T](override val name: Symbol) extends TypedColumn[T] with DataColumn {
+abstract class TypedDataColumn[T: ClassTag](override val name: Symbol) extends TypedColumn[T] with DataColumn {
   def requiredColumns = Seq(name)
   def toSql(gen: SqlGenerator) = {
     //TODO: This is temporary, until we have normalization of statement
@@ -479,7 +485,7 @@ abstract class TypedDataColumn[T](override val name: Symbol) extends TypedColumn
   }
 }
 
-class NumericDataColumn[T](name: Symbol) extends TypedDataColumn[T](name) with NumericColumn {
+class NumericDataColumn[T: ClassTag](name: Symbol) extends TypedDataColumn[T](name) with NumericColumn {
   override def castToNumeric = { this }
 }
 
@@ -499,19 +505,20 @@ class ByteColumn(n: Symbol) extends TypedDataColumn[Byte](n)
 
 class UntypedColumn(n: Symbol) extends TypedDataColumn[Any](n) {
   override def castToNumeric: NumericColumn = new NumericDataColumn(n)
+
 }
 
 /*******************/
 /* Literal columns */
 /*******************/
-abstract case class LiteralColumn[T](val value: T) extends TypedColumn[T] {
+abstract case class LiteralColumn[T: ClassTag](val value: T) extends TypedColumn[T] {
   def requiredColumns = Seq()
   def toSql(gen: SqlGenerator) = {
     s"${value}"
   }
 }
 
-abstract class NumericLiteral[T](value: T) extends LiteralColumn[T](value) with NumericColumn {
+abstract class NumericLiteral[T: ClassTag](value: T) extends LiteralColumn[T](value) with NumericColumn {
   override def castToNumeric = { this }
 }
 
@@ -536,6 +543,8 @@ trait MultiColumn extends Column {
 class AllColumn extends MultiColumn {
   def requiredColumns = Seq()
 
+  def dataType = ???
+
   def toColumns(schema: Schema) = {
     //TODO: make compilation to use MultiColumn interface
     schema.allColumnNames.map(new UntypedColumn(_)).toSeq
@@ -548,14 +557,14 @@ class AllColumn extends MultiColumn {
 /* Function columns */
 /********************/
 
-abstract class Function[T](funcName: String, cols: Column*) extends CompositeColumn[T](cols: _*) {
+abstract class Function[T: ClassTag](funcName: String, cols: Column*) extends CompositeColumn[T](cols: _*) {
   def toSql(gen: SqlGenerator) = {
     val columns = cols.map(c => gen.visit(c, null)).mkString(", ")
     s"${funcName}(${columns})"
   }
 }
 
-abstract class AggregateFunction[T](funcName: String, cols: Column*) extends Function[T](funcName, cols: _*) {
+abstract class AggregateFunction[T: ClassTag](funcName: String, cols: Column*) extends Function[T](funcName, cols: _*) {
   def createAggregatable(v1: Seq[Any]): Aggregatable[T]
 }
 
@@ -600,6 +609,9 @@ class CountDistinct(cols: Column*) extends AggregateFunction[Int]("COUNT_DISTINC
 
 class SubSelect(val statement: StatementWrapper) extends Column {
   override def requiredColumns: Seq[Symbol] = Seq() //non of other statement business
+
+  override def dataType = classOf[Any]
+
   def toSql(gen: SqlGenerator) = {
     val stmtSql = gen.generateSql(statement.statement())
     s"(${stmtSql})"

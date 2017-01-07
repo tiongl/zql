@@ -8,16 +8,10 @@ import zql.core.ExecutionPlan._
 import zql.core._
 import zql.sql.SqlGenerator
 
-class SparkSQLTable(val session: SparkSession, val tableName: String, val alias: String = null) extends Table {
-
-  val name = tableName
-
-  lazy val schema = new Schema() {
-    val allColumns = session.table(tableName).schema.fieldNames.map(name => new SimpleColumnDef(Symbol(name))).toSeq
-  }
+class SparkSQLTable(val session: SparkSession, val schema: Schema) extends Table {
 
   override def collectAsList(): List[Any] = {
-    val df = session.sql("select * from " + tableName)
+    val df = session.sql("select * from " + name)
     df.collect().toList
   }
 
@@ -30,10 +24,20 @@ class SparkSQLTable(val session: SparkSession, val tableName: String, val alias:
 
   override def compile(stmt: Statement): Executable[Table] = new SparkSQLCompiler(this, session).compile(stmt, schema)
 
-  override def as(alias: Symbol): Table = new SparkSQLTable(session, tableName, alias.name)
+  override def as(alias: Symbol): Table = new SparkSQLTable(session, schema.as(alias))
 }
 
-class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: SparkSQLTable, val alias: String = null) extends JoinedTable(tb1, tb2) {
+object SparkSQLTable {
+
+  def apply(session: SparkSession, tableName: String) = {
+    val schema = new SimpleSchema(tableName){
+      session.table(tableName).schema.fields.map(field => addSimpleColDef(Symbol(field.name), field.dataType.getClass)).toSeq
+    }
+    new SparkSQLTable(session, schema)
+  }
+}
+
+class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: SparkSQLTable) extends JoinedTable(tb1, tb2) {
   override def schema: Schema = new JoinedSchema(tb1, tb2)
 
   override def name: String = s"joined_${tb1.name}_${tb2.name}"
@@ -44,7 +48,9 @@ class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: Sp
     new SparkSQLCompiler(this, session).compile(stmt, schema)
   }
 
-  override def as(alias: Symbol) = new JoinedSparkSqlTable(session, tb1, tb2, alias.name)
+  override def as(alias: Symbol) = throw new IllegalArgumentException("Not supported as on joined table")
+
+  override def join(table: Table): JoinedTable = throw new IllegalArgumentException("Not supported join as on joined table")
 }
 
 class SparkSQLCompiler(table: Table, session: SparkSession) extends Compiler[SparkSQLTable] {
@@ -59,7 +65,7 @@ class SparkSQLCompiler(table: Table, session: SparkSession) extends Compiler[Spa
 
         val newTableName = table.name + "_" + UUID.randomUUID().toString.replace("-", "")
         df.createOrReplaceTempView(newTableName)
-        new SparkSQLTable(session, newTableName)
+        SparkSQLTable(session, newTableName)
       }
     }
     execPlan

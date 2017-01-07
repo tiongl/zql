@@ -2,7 +2,6 @@ package zql.spark
 
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.{ SparkConf, SparkContext }
-import org.scalatest.Assertion
 import zql.core.{ Person, TableTest, _ }
 
 class SparkSqlTableTest extends TableTest {
@@ -13,7 +12,7 @@ class SparkSqlTableTest extends TableTest {
     new Row(data)
   }
 
-  override def executeAndMatch(statement: StatementWrapper, rows: List[Row]): Assertion = {
+  override def executeAndMatch(statement: StatementWrapper, rows: List[Row]) = {
     println("Running sql: " + statement.statement().toSql())
     super.executeAndMatch(statement, rows)
   }
@@ -37,9 +36,9 @@ class SparkSqlTableTest extends TableTest {
 
   }
 
-  val personTable = new SparkSQLTable(spark, "person")
+  val personTable = SparkSQLTable(spark, "person")
 
-  val departmentTable = new SparkSQLTable(spark, "department")
+  val departmentTable = SparkSQLTable(spark, "department")
 
   override def supportSelectLimitOffset = {
     //TODO: this is never supported. we probably should do detection in compile phase to throw exception on it

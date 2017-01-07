@@ -3,6 +3,8 @@ package zql.core
 import zql.list.ListTable
 
 class ListTableTest extends TableTest {
-  val personTable = ListTable[Person]("person", 'id, 'firstName, 'lastName, 'age, 'departmentId)(persons)
-  val departmentTable = ListTable[Department]("department", 'id, 'name)(departments)
+
+  val personTable = new ListTable[Person](personSchema, persons)
+
+  val departmentTable = new ListTable[Department](departmentSchema, departments)
 }

@@ -24,7 +24,16 @@ object RDDTableExample {
 
     val rdd = sc.parallelize(data)
 
-    val listTable = RDDTable[Person]('id, 'firstName, 'lastName, 'age)(rdd)
+
+    val personSchema = new ReflectedSchema[Person]("person"){
+      o INT 'id
+      o STRING 'firstName
+      o STRING 'lastName
+      o INT 'age
+      o INT 'departmentId
+    }
+
+    val listTable = new RDDTable[Person](personSchema, rdd)
 
     val stmt = select(*) from listTable where ('firstName === "John") limit (5) //pick first 5 johns
 

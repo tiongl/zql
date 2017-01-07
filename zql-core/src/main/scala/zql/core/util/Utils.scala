@@ -3,6 +3,7 @@ package zql.core.util
 import zql.core.Row
 
 import scala.collection.mutable
+import scala.util.Try
 
 object Utils {
   def groupBy[T, D](traversable: Traversable[T], keyFunc: (T) => Any, valueFunc: (T) => D, reduceFunc: (D, D) => D): Iterable[D] = {
@@ -56,21 +57,4 @@ object Utils {
     compared == 1 || compared == 0
   }
 
-  class SeqOrdering(ascendings: Array[Boolean]) extends Ordering[Seq[Any]] {
-    override def compare(x: Seq[Any], y: Seq[Any]): Int = {
-      x.zip(y).zipWithIndex.foreach {
-        case ((a, b), index) =>
-          val comparedValue = Utils.compare(a, b)
-          if (comparedValue != 0) {
-            if (ascendings(index)) {
-              return comparedValue
-            } else {
-              return comparedValue * -1
-            }
-
-          }
-      }
-      0
-    }
-  }
 }

@@ -1,6 +1,7 @@
 package zql.spark
 
 import org.apache.spark.{ SparkConf, SparkContext }
+import org.scalatest.Outcome
 import zql.core.{ Person, TableTest }
 import zql.core._
 
@@ -16,9 +17,9 @@ class RDDTableTest extends TableTest {
 
   val departmentRdd = sc.parallelize(departments)
 
-  val personTable = RDDTable[Person]("person", 'id, 'firstName, 'lastName, 'age, 'departmentId)(personRdd)
+  val personTable = new RDDTable[Person](personSchema, personRdd)
 
-  val departmentTable = RDDTable[Department]("department", 'id, 'name)(departmentRdd)
+  val departmentTable = new RDDTable[Department](departmentSchema, departmentRdd)
 
   it should "support partition by" in supportPartitionBy
 
@@ -32,4 +33,5 @@ class RDDTableTest extends TableTest {
   override protected def afterAll(): Unit = {
     sc.stop()
   }
+
 }

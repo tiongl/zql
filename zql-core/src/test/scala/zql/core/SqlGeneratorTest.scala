@@ -5,8 +5,14 @@ import zql.list.ListTable
 import zql.sql.DefaultSqlGenerator
 
 class SqlGeneratorTest extends FlatSpec with Matchers with PersonExample {
-
-  val table: Table = ListTable[Person]("person", 'id, 'firstName, 'lastName, 'age)(persons)
+  val personSchema = new ReflectedSchema[Person]("person"){
+    o INT 'id
+    o STRING 'firstName
+    o STRING 'lastName
+    o INT 'age
+    o INT 'departmentId
+  }
+  val table: Table = new ListTable[Person](personSchema, persons)
 
   val option = new CompileOption
 
