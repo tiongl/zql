@@ -6,12 +6,27 @@ import scala.collection.mutable
 
 abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll with PersonExample {
 
+
   def personTable: Table
 
   def departmentTable: Table
 
+  def personSchema = new ReflectedSchema[Person]("person"){
+    o INT 'id
+    o STRING 'firstName
+    o STRING 'lastName
+    o INT 'age
+    o INT 'departmentId
+  }
+
+  def departmentSchema = new ReflectedSchema[Department]("department"){
+    o INT 'id
+    o STRING 'name
+  }
+
   def executeAndMatch(statement: StatementWrapper, rows: List[Row]) = {
     val results = statement.compile.execute().collectAsList().map(r => normalizeRow(r))
+    println("Query = " + statement.statement().toSql())
     println("Results = " + results)
     println("Results size = " + results.length)
     println("Expected = " + rows)

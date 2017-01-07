@@ -1,7 +1,7 @@
 package zql
 
-import zql.core.ReflectionColumnDef
 import zql.core.util.Utils
+import zql.list.TypedFunc
 
 import scala.reflect.ClassTag
 
@@ -60,10 +60,6 @@ package object core {
 
   //Column definitions
 
-  implicit def symToReflectionColumnDef[ROW: ClassTag](sym: Symbol): ReflectionColumnDef[ROW] = {
-    new ReflectionColumnDef[ROW](sym)
-  }
-
   implicit class ColumnHelper(val sc: StringContext) extends AnyVal {
     def c(args: Any*): DataColumn = {
       val strings = sc.parts.iterator
@@ -75,6 +71,10 @@ package object core {
       }
       new UntypedColumn(Symbol(sb.toString()))
     }
+  }
+
+  implicit def funcToColumnDef[ROW: ClassTag, T](func: (ROW) => T)(implicit ctag: ClassTag[T]): TypedFunc[ROW, T] = {
+    new TypedFunc[ROW, T](func)
   }
 
 }

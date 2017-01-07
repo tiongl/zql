@@ -17,7 +17,16 @@ object ListTableExample {
       new Person(4, "Anna", "Doe", 10, 1) //
     ).toList
 
-    val listTable = ListTable[Person]('id, 'firstName, 'lastName, 'age)(data)
+
+    val personSchema = new ReflectedSchema[Person]("person"){
+      o INT 'id
+      o STRING 'firstName
+      o STRING 'lastName
+      o INT 'age
+      o INT 'departmentId
+    }
+
+    val listTable = new ListTable[Person](personSchema, data)
 
     val stmt = select(*) from listTable where ('firstName === "John") limit (5) //pick first 5 johns
 
