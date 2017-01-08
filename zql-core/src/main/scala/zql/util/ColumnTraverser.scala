@@ -1,7 +1,10 @@
-package zql.core
+package zql.util
+
+import zql.core._
 
 /**
  * This is similar to column visitor exception use pattern matching to make it simpler to understand
+ *
  * @tparam R
  */
 abstract class ColumnTraverser[R, C] {

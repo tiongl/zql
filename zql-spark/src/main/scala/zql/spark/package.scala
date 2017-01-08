@@ -2,9 +2,6 @@ package zql
 
 import zql.core._
 
-/**
- * Created by tiong on 12/5/16.
- */
 package object spark {
 
   class PartitionStatement(states: Map[String, Any]) extends Statement(states) {

@@ -4,6 +4,7 @@ import org.apache.spark.{ SparkConf, SparkContext }
 import org.scalatest.Outcome
 import zql.core.{ Person, TableTest }
 import zql.core._
+import zql.rowbased.Row
 
 //NOTE: If you have 'bad symbolic issue' issue regarding TableTest and Assertion in intellij,
 // you need to export scalatest jar from core project using intellij module settings

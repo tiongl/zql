@@ -1,11 +1,7 @@
-package zql.core
+package zql.rowbased
 
-import org.slf4j.{ LoggerFactory, Logger }
-import zql.sql.SqlGenerator
-
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.util.Try
+import zql.core._
+import zql.schema.{ DefaultSchema, JoinedSchema, Schema }
 
 class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]) extends JoinedTable(tb1, tb2) with AccessorCompiler {
 
@@ -26,18 +22,18 @@ class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]
     val com2 = new RowBasedCompiler(tb2)
 
     val allColumnDefs: Seq[(Symbol, ColumnRef)] = info.columnDefs
-    val t1Cols = allColumnDefs.filter(_._2.schema==tb1.schema)
-    val t2Cols = allColumnDefs.filter(_._2.schema==tb2.schema)
+    val t1Cols = allColumnDefs.filter(_._2.schema == tb1.schema)
+    val t2Cols = allColumnDefs.filter(_._2.schema == tb2.schema)
 
     val select1 = t1Cols.map(_._2.colDef).map { colDef =>
       new ColumnAccessor[T1, Any] {
-        override def apply(v1: T1): Any = colDef.asInstanceOf[TypedColumnDef[Any]].get(v1)
+        override def apply(v1: T1): Any = colDef.asInstanceOf[RowBasedColumnDef[Any]].get(v1)
       }
     }
 
     val select2 = t2Cols.map(_._2.colDef).map { colDef =>
       new ColumnAccessor[T2, Any] {
-        override def apply(v1: T2): Any = colDef.asInstanceOf[TypedColumnDef[Any]].get(v1)
+        override def apply(v1: T2): Any = colDef.asInstanceOf[RowBasedColumnDef[Any]].get(v1)
       }
     }
     val selectFunc1 = (t1: T1) => new Row(select1.map(_(t1)).toArray)
@@ -70,13 +66,12 @@ class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]
   override def as(alias: Symbol): Table = throw new IllegalStateException("Alias of joined table is not supported")
 
   override def join(table: Table): JoinedTable = ???
-//  table match {
-//    case rbt: RowBasedTable[_] =>
-//      new JoinedRowBasedTable(this, rbt)
-//    case _ =>
-//      throw new IllegalArgumentException("Cannot join rowbased table with " + table + " of type " + table.getClass)
-//  }
+  //  table match {
+  //    case rbt: RowBasedTable[_] =>
+  //      new JoinedRowBasedTable(this, rbt)
+  //    case _ =>
+  //      throw new IllegalArgumentException("Cannot join rowbased table with " + table + " of type " + table.getClass)
+  //  }
 }
 
 class JoinedRowBasedCompiler(table: JoinedRowBasedTable[_, _])
-

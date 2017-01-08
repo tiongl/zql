@@ -6,6 +6,7 @@ import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import zql.core.ExecutionPlan._
 import zql.core._
+import zql.schema.{ JoinedSchema, Schema, SimpleSchema }
 import zql.sql.SqlGenerator
 
 class SparkSQLTable(val session: SparkSession, val schema: Schema) extends Table {
@@ -30,7 +31,7 @@ class SparkSQLTable(val session: SparkSession, val schema: Schema) extends Table
 object SparkSQLTable {
 
   def apply(session: SparkSession, tableName: String) = {
-    val schema = new SimpleSchema(tableName){
+    val schema = new SimpleSchema(tableName) {
       session.table(tableName).schema.fields.map(field => addSimpleColDef(Symbol(field.name), field.dataType.getClass)).toSeq
     }
     new SparkSQLTable(session, schema)

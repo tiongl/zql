@@ -1,15 +1,13 @@
-package zql.core
+package zql.util
 
 import java.lang.reflect.InvocationTargetException
 
 import org.slf4j.LoggerFactory
+import zql.core.Column
 
 import scala.reflect.ClassTag
 import scala.util.Try
 
-/**
- * Created by tiong on 12/12/16.
- */
 class ColumnVisitor[R <: Any: ClassTag, C <: AnyRef: ClassTag] {
   val logger = LoggerFactory.getLogger("zql.core.ColumnVisitor")
   val rRuntime = scala.reflect.classTag[R].runtimeClass

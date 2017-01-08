@@ -1,6 +1,7 @@
 package zql.core
 
-import org.scalatest.{ Matchers, FlatSpec }
+import org.scalatest.{ FlatSpec, Matchers }
+import zql.util.ColumnVisitor
 
 class ColumnVisitorTest extends FlatSpec with Matchers {
 
