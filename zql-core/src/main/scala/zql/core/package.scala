@@ -1,13 +1,5 @@
 package zql
 
-import zql.core.util.Utils
-import zql.list.TypedFunc
-
-import scala.reflect.ClassTag
-
-/**
- * Created by tiong on 7/4/16.
- */
 package object core {
 
   implicit def untypedColumn(symbol: Symbol): UntypedColumn = {
@@ -71,10 +63,6 @@ package object core {
       }
       new UntypedColumn(Symbol(sb.toString()))
     }
-  }
-
-  implicit def funcToColumnDef[ROW: ClassTag, T](func: (ROW) => T)(implicit ctag: ClassTag[T]): TypedFunc[ROW, T] = {
-    new TypedFunc[ROW, T](func)
   }
 
 }

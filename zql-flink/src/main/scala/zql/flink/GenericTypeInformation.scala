@@ -5,18 +5,15 @@ import java.util
 
 import org.apache.flink.api.common.ExecutionConfig
 import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.common.typeutils.CompositeType.{TypeComparatorBuilder, FlatFieldDescriptor}
-import org.apache.flink.api.common.typeutils.{TypeComparator, CompositeType, TypeSerializer}
+import org.apache.flink.api.common.typeutils.CompositeType.{ TypeComparatorBuilder, FlatFieldDescriptor }
+import org.apache.flink.api.common.typeutils.{ TypeComparator, CompositeType, TypeSerializer }
 import org.apache.flink.api.java.typeutils.runtime.TupleComparatorBase
-import org.apache.flink.core.memory.{MemorySegment, DataOutputView, DataInputView}
-import zql.core.Row
+import org.apache.flink.core.memory.{ MemorySegment, DataOutputView, DataInputView }
+import zql.rowbased.Row
 
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
-/**
-  * Created by tiong on 1/3/17.
-  */
 class GenericTypeInfo[T: ClassTag](func: () => T, numOfFields: Int = 1, isKey: Boolean = false) extends TypeInformation[T] {
   override def isBasicType: Boolean = false
 
@@ -41,7 +38,7 @@ class GenericTypeInfo[T: ClassTag](func: () => T, numOfFields: Int = 1, isKey: B
   override def hashCode: Int = 0
 }
 
-class GenericTypeSerializer[T: ClassTag](func: ()=>T) extends TypeSerializer[T] {
+class GenericTypeSerializer[T: ClassTag](func: () => T) extends TypeSerializer[T] {
   override def createInstance(): T = func.apply()
 
   override def getLength: Int = -1
@@ -167,12 +164,10 @@ class RowTypeInfo(typeInfo: TypeInformation[_]*) extends CompositeType[Row](clas
 
     override def createTypeComparator(config: ExecutionConfig): TypeComparator[Row] = new RowTypeComparator(config) {
 
-
     }
   }
 
-  class RowTypeComparator(config: ExecutionConfig) extends
-    TupleComparatorBase[Row](Array[Int](), Array[TypeComparator[_]](), Array[TypeSerializer[_]]()) with Serializable {
+  class RowTypeComparator(config: ExecutionConfig) extends TupleComparatorBase[Row](Array[Int](), Array[TypeComparator[_]](), Array[TypeSerializer[_]]()) with Serializable {
 
     val serializer = createSerializer(config)
 

@@ -2,6 +2,7 @@ package zql.examples
 
 import org.apache.spark.{SparkConf, SparkContext}
 import zql.core._
+import zql.rowbased.ReflectedSchema
 import zql.spark.RDDTable
 
 object RDDTableExample {

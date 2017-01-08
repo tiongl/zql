@@ -2,10 +2,11 @@ package zql.core
 
 import org.scalatest._
 import zql.list.ListTable
+import zql.rowbased.ReflectedSchema
 
 class DslTest extends FlatSpec with Matchers with PersonExample {
 
-  val schema = new ReflectedSchema[Person]("test"){
+  val schema = new ReflectedSchema[Person]("test") {
     o INT 'id
     o STRING 'firstName
     o STRING 'lastName

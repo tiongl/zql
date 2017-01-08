@@ -2,10 +2,11 @@ package zql.core
 
 import org.scalatest.{ FlatSpec, Matchers }
 import zql.list.ListTable
+import zql.rowbased.ReflectedSchema
 import zql.sql.DefaultSqlGenerator
 
 class SqlGeneratorTest extends FlatSpec with Matchers with PersonExample {
-  val personSchema = new ReflectedSchema[Person]("person"){
+  val personSchema = new ReflectedSchema[Person]("person") {
     o INT 'id
     o STRING 'firstName
     o STRING 'lastName

@@ -2,6 +2,7 @@ package zql.examples
 
 import zql.core._
 import zql.list.ListTable
+import zql.rowbased.ReflectedSchema
 
 object ListTableExample {
 

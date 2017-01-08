@@ -1,7 +1,9 @@
 package zql.core
 
-import zql.core.util.Utils
-import zql.sql.{ SqlGenerator, DefaultSqlGenerator }
+import zql.rowbased.Row
+import zql.schema.Schema
+import zql.sql.{ DefaultSqlGenerator, SqlGenerator }
+import zql.util.Utils
 
 import scala.reflect.ClassTag
 

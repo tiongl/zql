@@ -3,6 +3,8 @@ package zql.spark
 import org.apache.spark.rdd.RDD
 import zql.core
 import zql.core._
+import zql.rowbased.{ Row, RowBasedTable, RowBasedData }
+import zql.schema.Schema
 import scala.reflect.ClassTag
 
 class RDDData[T: ClassTag](val rdd: RDD[T], val option: CompileOption = new CompileOption()) extends RowBasedData[T] {

@@ -1,9 +1,6 @@
-package zql.core.util
-
-import zql.core.Row
+package zql.util
 
 import scala.collection.mutable
-import scala.util.Try
 
 object Utils {
   def groupBy[T, D](traversable: Traversable[T], keyFunc: (T) => Any, valueFunc: (T) => D, reduceFunc: (D, D) => D): Iterable[D] = {

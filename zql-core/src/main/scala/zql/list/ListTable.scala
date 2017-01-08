@@ -1,9 +1,10 @@
 package zql.list
 
-import java.util.UUID
-
 import zql.core._
-import zql.core.util.Utils
+import zql.rowbased.{ Row, RowBasedData, RowBasedTable }
+import zql.schema.Schema
+import zql.util.Utils
+
 import scala.reflect.ClassTag
 
 class ListTable[ROW: ClassTag](schema: Schema, list: List[ROW]) extends RowBasedTable[ROW](schema) {
@@ -18,11 +19,9 @@ class ListTable[ROW: ClassTag](schema: Schema, list: List[ROW]) extends RowBased
   override def as(alias: Symbol): Table = new ListTable[ROW](schema.as(alias), list)
 }
 
-class TypedFunc[ROW, T: ClassTag](func: (ROW) => T)
+class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = new CompileOption) extends RowBasedData[ROW] {
 
-class ListData[ROW](val list: List[ROW], val option: CompileOption = new CompileOption) extends RowBasedData[ROW] {
-
-  implicit def listToListData[T](list: List[T]) = new ListData[T](list, option)
+  implicit def listToListData[T: ClassTag](list: List[T]) = new ListData[T](list, option)
 
   override def select(r: (ROW) => Row): RowBasedData[Row] = list.map(r).toList
 

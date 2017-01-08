@@ -1,9 +1,7 @@
 package zql.core
 
 import org.scalatest.{ FlatSpec, Matchers }
-import zql.core.util.Utils
-
-import scala.collection.mutable
+import zql.util.Utils
 
 class UtilsTest extends FlatSpec with Matchers {
 

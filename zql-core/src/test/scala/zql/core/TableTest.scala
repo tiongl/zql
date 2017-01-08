@@ -1,17 +1,18 @@
 package zql.core
 
 import org.scalatest.{ BeforeAndAfterAll, FlatSpec, Matchers }
-import zql.core.util.Utils
+import zql.rowbased.{ Row, ReflectedSchema }
+import zql.util.Utils
+
 import scala.collection.mutable
 
 abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll with PersonExample {
-
 
   def personTable: Table
 
   def departmentTable: Table
 
-  def personSchema = new ReflectedSchema[Person]("person"){
+  def personSchema = new ReflectedSchema[Person]("person") {
     o INT 'id
     o STRING 'firstName
     o STRING 'lastName
@@ -19,7 +20,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
     o INT 'departmentId
   }
 
-  def departmentSchema = new ReflectedSchema[Department]("department"){
+  def departmentSchema = new ReflectedSchema[Department]("department") {
     o INT 'id
     o STRING 'name
   }

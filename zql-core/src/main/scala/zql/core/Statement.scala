@@ -1,7 +1,8 @@
 package zql.core
 
 import zql.list.ListTable
-import zql.sql.{ DefaultSqlGenerator }
+import zql.schema.{ Schema, SimpleSchema }
+import zql.sql.DefaultSqlGenerator
 
 import scala.collection.mutable
 
