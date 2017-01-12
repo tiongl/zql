@@ -38,6 +38,18 @@ case class Row(val data: Array[Any]) extends Comparable[Row] {
   override def compareTo(o: Row): Int = Row.rowOrdering.compare(this, o)
 }
 
+class RowWithKey(data: Array[Any], val key: Row) extends Row(data) {
+  override def aggregate(row: Row, indices: Array[Int]): Row = {
+    val other = row.asInstanceOf[RowWithKey]
+    val r = super.aggregate(row, indices)
+    new RowWithKey(r.data, key)
+  }
+
+  override def toString = {
+    super.toString + " withkey " + key.toString
+  }
+}
+
 object Row {
   implicit val rowOrdering = new RowOrdering()
   implicit val EMPTY_ROW = new Row(Array()) {

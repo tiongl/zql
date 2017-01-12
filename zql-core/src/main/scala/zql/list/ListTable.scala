@@ -23,8 +23,6 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
 
   implicit def listToListData[T: ClassTag](list: List[T]) = new ListData[T](list, option)
 
-  override def select(r: (ROW) => Row): RowBasedData[Row] = list.map(r).toList
-
   override def filter(filter: (ROW) => Boolean): RowBasedData[ROW] = list.filter(filter)
 
   override def groupBy(keyFunc: (ROW) => Row, valueFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row] = {
@@ -33,7 +31,7 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
 
   override def reduce(reduceFunc: (ROW, ROW) => ROW) = List(list.reduce(reduceFunc))
 
-  override def map(mapFunc: (ROW) => Row) = list.map(mapFunc)
+  override def map[T: ClassTag](mapFunc: (ROW) => T) = list.map(mapFunc)
 
   override def sortBy(keyFunc: (ROW) => Row, ordering: Ordering[Row], ctag: ClassTag[Row]) = new ListData(list.sortBy(keyFunc)(ordering))
 
@@ -41,7 +39,7 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
 
   override def size() = list.length
 
-  override def asList = list
+  override def asList[T] = list.asInstanceOf[List[T]]
 
   override def isLazy = false
 

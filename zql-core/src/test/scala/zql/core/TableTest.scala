@@ -26,7 +26,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   }
 
   def executeAndMatch(statement: StatementWrapper, rows: List[Row]) = {
-    val results = statement.compile.execute().collectAsList().map(r => normalizeRow(r))
+    val results = statement.compile.execute().collectAsRowList.map(r => normalizeRow(r))
     println("Query = " + statement.statement().toSql())
     println("Results = " + results)
     println("Results size = " + results.length)
@@ -254,7 +254,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   def supportSelectCount = {
     executeAndMatch(
       select(count(*) as 'myCount) from personTable,
-      List(new Row(Array(personTable.collectAsList().length)))
+      List(new Row(Array(persons.length)))
     )
   }
 

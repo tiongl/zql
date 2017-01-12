@@ -1,10 +1,12 @@
 package zql.core
 
 import zql.list.ListTable
+import zql.rowbased.Row
 import zql.schema.{ Schema, SimpleSchema }
-import zql.sql.DefaultSqlGenerator
+import zql.sql.{ SqlGenerator, DefaultSqlGenerator }
 
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 trait Executable[+T] {
   def execute(): T
@@ -12,7 +14,7 @@ trait Executable[+T] {
 
 class CompileOption extends mutable.HashMap[String, Object]
 
-trait Compiler[T <: Table] {
+trait StatementCompiler[T <: Table] {
   def compile(stmt: Statement, schema: Schema, option: CompileOption = new CompileOption): Executable[T]
 }
 
@@ -54,6 +56,30 @@ trait Whereable extends Groupable {
 trait Fromable extends StatementWrapper {
   class Fromed(val statement: Statement) extends Whereable
   def from(table: Table): Fromed = new Fromed(statement.from(table))
+  def from(stmt: StatementWrapper): Fromed = from(new SubQuery(stmt))
+}
+
+class SubQuery(statement: StatementWrapper) extends Table {
+
+  lazy val executed = statement.compile.execute()
+
+  println("Collected = " + executed.collectAsRowList)
+
+  override def schema: Schema = executed.schema
+
+  override def join(table: Table): JoinedTable = ???
+
+  override def collectAsList[T: ClassTag](): List[T] = executed.collectAsList()
+
+  override def collectAsRowList: List[Row] = executed.collectAsRowList
+
+  override def compile(stmt: Statement): Executable[Table] = executed.compile(stmt)
+
+  override def as(alias: Symbol): Table = ???
+
+  override def toSql(gen: SqlGenerator): String = {
+    "(" + statement.statement().toSql() + ")"
+  }
 }
 
 class Selected(distinct: Boolean, cols: Column*) extends Fromable {

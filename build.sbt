@@ -38,6 +38,7 @@ lazy val core = project.in( file("zql-core") ) settings (
 lazy val spark = project in file("zql-spark") dependsOn( core % "compile->compile;test->compile;test->test") settings (
   libraryDependencies += "org.apache.spark" %% "spark-core" % "2.0.0" % "provided",
   libraryDependencies += "org.apache.spark" %% "spark-sql" % "2.0.0" % "provided",
+  libraryDependencies += "org.apache.spark" %% "spark-streaming" % "2.0.0" % "provided",
   parallelExecution in Test := false //to avoid multi sparkcontext in single jvm issue
   )
 

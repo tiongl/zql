@@ -7,17 +7,6 @@ import zql.rowbased.Row
 
 class SparkSqlTableTest extends TableTest {
 
-  override def normalizeRow(row: Any) = {
-    val realRow = row.asInstanceOf[org.apache.spark.sql.Row]
-    val data = realRow.toSeq.toArray
-    new Row(data)
-  }
-
-  override def executeAndMatch(statement: StatementWrapper, rows: List[Row]) = {
-    println("Running sql: " + statement.statement().toSql())
-    super.executeAndMatch(statement, rows)
-  }
-
   val spark = SparkSession
     .builder()
     .appName("SparkSqlTableTest")

@@ -73,11 +73,6 @@ class FlinkData[ROW: ClassTag](val ds: DataSet[ROW], val option: CompileOption =
 
   override def size: Int = ds.size
 
-  override def select(r: (ROW) => Row): RowBasedData[Row] = {
-    implicit val rowTypeInfo = createTypeInfo(stmtInfo.expandedSelects.map(_.dataType))
-    ds.map(r)
-  }
-
   override def sortBy(keyFunc: (ROW) => Row, ordering: Ordering[Row], tag: ClassManifest[Row]): RowBasedData[ROW] = {
     implicit val keyTypeInfo = createTypeInfo(stmtInfo.stmt.orderBy.map(_.dataType))
     //    ds.setParallelism(1).sortPartition(keyFunc, Order.ASCENDING)
@@ -86,10 +81,10 @@ class FlinkData[ROW: ClassTag](val ds: DataSet[ROW], val option: CompileOption =
 
   override def slice(offset: Int, until: Int): RowBasedData[ROW] = if (offset == 0) ds.first(until) else throw new UnsupportedOperationException()
 
-  override def asList: List[ROW] = ds.collect().toList
+  override def asList[T]: List[T] = ds.collect().toList.asInstanceOf[List[T]]
 
-  override def map(mapFunc: (ROW) => Row): RowBasedData[Row] = {
-    implicit val rowTypeInfo = createTypeInfo(stmtInfo.expandedSelects.map(_.dataType))
+  override def map[T: ClassTag](mapFunc: (ROW) => T): RowBasedData[T] = {
+    implicit val rowTypeInfo = createTypeInfo(stmtInfo.expandedSelects.map(_.dataType)).asInstanceOf[TypeInformation[T]]
     ds.map(mapFunc)
   }
 }

@@ -22,9 +22,9 @@ abstract class RowBasedTable[R: ClassTag](val schema: Schema) extends Table {
 
   def createTable[T: ClassTag](newSchema: Schema, rowBased: RowBasedData[T]): RowBasedTable[T]
 
-  def collectAsList() = data.asList
+  def collectAsList[T: ClassTag]() = data.asList[T]
 
-  def getCompiler[TB <: Table]() = new RowBasedCompiler[R](this).asInstanceOf[Compiler[TB]]
+  def getCompiler[TB <: Table]() = new RowBasedStatementCompiler[R](this).asInstanceOf[StatementCompiler[TB]]
 
   override def join(table: Table): JoinedTable = table match {
     case rbt: RowBasedTable[_] =>
@@ -32,4 +32,6 @@ abstract class RowBasedTable[R: ClassTag](val schema: Schema) extends Table {
     case _ =>
       throw new IllegalArgumentException("Cannot join rowbased table with " + table + " of type " + table.getClass)
   }
+
+  override def collectAsRowList = collectAsList[Row]
 }

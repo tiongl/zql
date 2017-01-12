@@ -9,6 +9,7 @@ class FlinkDsTableTest extends TableTest {
   implicit val personTypeInfo = new GenericTypeInfo[Person](() => new Person(-1, "test", "test", -1, -1))
   implicit val departmentTypeInfo = new GenericTypeInfo[Department](() => new Department(-1, "test"))
   val env = ExecutionEnvironment.getExecutionEnvironment
+  env.getConfig.disableSysoutLogging
   val personDs = env.fromElements(persons: _*)
   val departmentDs = env.fromElements(departments: _*)
 
