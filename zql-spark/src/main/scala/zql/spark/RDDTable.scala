@@ -20,16 +20,16 @@ class RDDData[R: ClassTag](val rdd: RDD[R], val option: CompileOption = new Comp
   }
 
   override def filter(filter: (R) => Boolean): RowBasedData[R] = rdd.filter(filter)
-
-  override def groupBy(keyFunc: (R) => Row, valueFunc: (R) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row] = {
+  
+  override def groupBy(keyFunc: (R) => Row, valueFunc: (R) => Row, aggFunc: (Row, Row) => Row): RowBasedData[Row] = {
     val tuples = rdd.map { row => (keyFunc(row), valueFunc(row)) }
-    tuples.reduceByKey(_.aggregate(_, aggregatableIndices)).map(_._2)
+    tuples.reduceByKey(aggFunc).map(_._2)
   }
 
   override def size: Int = ???
 
-  override def sortBy(keyFunc: (R) => Row, ordering: Ordering[Row], classTag: ClassTag[Row]): RowBasedData[R] = {
-    rdd.sortBy(keyFunc)(ordering, classTag)
+  override def sortBy[T: ClassTag](keyFunc: (R) => T, ordering: Ordering[T]): RowBasedData[R] = {
+    rdd.sortBy(keyFunc)(ordering, scala.reflect.classTag[T])
   }
 
   override def asList[T]: List[T] = rdd.collect().toList.asInstanceOf[List[T]]
@@ -42,10 +42,10 @@ class RDDData[R: ClassTag](val rdd: RDD[R], val option: CompileOption = new Comp
 
   override def distinct(): RowBasedData[R] = rdd.distinct()
 
-  override def join(other: RowBasedData[Row], jointPoint: (Row) => Boolean): RowBasedData[Row] = other match {
-    case rddData: RDDData[Row] =>
-      rdd.asInstanceOf[RDD[Row]].cartesian[Row](rddData.rdd).map {
-        case (r1, r2) => new Row(r1.data ++ r2.data)
+  override def join[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (R, T) => Row): RowBasedData[Row] = other match {
+    case rddData: RDDData[T] =>
+      rdd.cartesian(rddData.rdd).map {
+        case (r1, r2) => rowifier(r1, r2)
       }.filter(jointPoint.apply(_))
     case _ =>
       throw new IllegalArgumentException("Unsupported join type " + other.toString)

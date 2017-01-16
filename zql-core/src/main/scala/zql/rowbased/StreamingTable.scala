@@ -7,12 +7,19 @@ import zql.sql.SqlGenerator
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-abstract class StreamData[R: ClassTag] extends RowBasedData[R] {
+abstract class StreamData[ROW: ClassTag] extends RowBasedData[ROW] {
   def asQueue[T: ClassTag]: mutable.Queue[T]
 
   def asRowQueue: mutable.Queue[Row]
 
-  def getSnapshotCollector: SnapshotCollector[R]
+  def getSnapshotCollector: SnapshotCollector[ROW]
+
+  override def size: Int = throw new UnsupportedOperationException("size is not supported for streaming")
+
+  override def sortBy[T: ClassTag](keyFunc: (ROW) => T, ordering: Ordering[T]): RowBasedData[ROW] = throw new UnsupportedOperationException("sort is not supported for streaming")
+
+  override def slice(offset: Int, until: Int): RowBasedData[ROW] = throw new UnsupportedOperationException("slice is not supported for streaming")
+
 }
 
 abstract class StreamingTable[R: ClassTag](schema: Schema, streamData: StreamData[R]) extends RowBasedTable[R](schema) {

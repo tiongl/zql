@@ -3,6 +3,7 @@ package zql.spark
 import org.apache.spark.SparkConf
 import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.InputDStream
+import org.apache.spark.streaming.scheduler.StreamingListener
 import org.apache.spark.streaming.{ Seconds, StreamingContext }
 import org.scalatest.{ BeforeAndAfterEach, Assertion }
 import zql.core._
@@ -20,8 +21,15 @@ class DStreamTableTest extends StreamingTableTest with BeforeAndAfterEach {
 
   var departmentTable: Table = null
 
+  var personRdds: Seq[RDD[Person]] = null
+
+  var departmentRdds: Seq[RDD[Department]] = null
+
+  var personQueue: Queue[RDD[Person]] = null
+
+  var departmentQueue: Queue[RDD[Department]] = null
+
   override protected def beforeEach(): Unit = {
-    println("Before")
     ssc = new StreamingContext(sparkConf, Seconds(1))
     val tmp = java.io.File.createTempFile("DStreamTableTest", "test")
     tmp.delete()
@@ -29,11 +37,11 @@ class DStreamTableTest extends StreamingTableTest with BeforeAndAfterEach {
     tmp.deleteOnExit()
     ssc.checkpoint(tmp.getAbsolutePath)
 
-    val personRdds = persons.map(p => ssc.sparkContext.makeRDD[Person](Seq(p)))
-    val departmentRdds = departments.map(d => ssc.sparkContext.makeRDD[Department](Seq(d)))
+    personRdds = persons.map(p => ssc.sparkContext.makeRDD[Person](Seq(p)))
+    departmentRdds = departments.map(d => ssc.sparkContext.makeRDD[Department](Seq(d)))
 
-    val personQueue = Queue(personRdds: _*)
-    val departmentQueue = Queue[RDD[Department]](departmentRdds: _*)
+    personQueue = new Queue[RDD[Person]]
+    departmentQueue = new Queue[RDD[Department]]
     // Create the QueueInputDStream and use it do some processing
     val personStream = ssc.queueStream(personQueue)
     val departmentStream = ssc.queueStream(departmentQueue)
@@ -47,7 +55,12 @@ class DStreamTableTest extends StreamingTableTest with BeforeAndAfterEach {
     println("SQL = " + statement.statement().toSql())
     println("Starting spark context")
     ssc.start()
-    Thread.sleep(10000)
+    personRdds.foreach {
+      p =>
+        personQueue.enqueue(p)
+        Thread.sleep(1000)
+    }
+    Thread.sleep(5000)
     val results = collector.collect.asInstanceOf[List[Row]]
     println("Results = " + results.sorted.mkString(", "))
     println("Expected = " + rows.sorted.mkString(", "))
@@ -56,7 +69,6 @@ class DStreamTableTest extends StreamingTableTest with BeforeAndAfterEach {
   }
 
   override protected def afterEach(): Unit = {
-    println("After")
     println("Stopping spark context")
     ssc.stop()
     ssc = null

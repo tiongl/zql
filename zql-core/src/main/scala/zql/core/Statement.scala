@@ -63,8 +63,6 @@ class SubQuery(statement: StatementWrapper) extends Table {
 
   lazy val executed = statement.compile.execute()
 
-  println("Collected = " + executed.collectAsRowList)
-
   override def schema: Schema = executed.schema
 
   override def join(table: Table): JoinedTable = ???

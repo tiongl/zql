@@ -39,6 +39,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   //Operations
   it should "Support all operation" in supportAllOperations
+  it should "Support all operation 2" in supportAllOperations2
 
   //Selects
   it should "support select with math operations" in supportSelectWithMathOperations
@@ -94,7 +95,11 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
       select(one + 1, one - 1, one * 2, one / 2) from personTable,
       persons.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1 / 2.toFloat)))
     )
+  }
 
+  def supportAllOperations2 = {
+    val one = new IntLiteral(1)
+    val str = new StringLiteral("test")
     //equality
     executeAndMatch(
       select(one > 1, one > 0, one > -1, one >= 1, one >= 0, one >= -1, one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1) from personTable,

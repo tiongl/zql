@@ -6,6 +6,8 @@ import zql.schema.Schema
 object RowBasedStatementCompiler {
   def toRowFunc[ROW](selects: Seq[ColumnAccessor[ROW, _]]) = (row: ROW) => new Row(selects.map(s => s.apply(row)).toArray)
   def toFunc[ROW, T](accessor: ColumnAccessor[ROW, T]): (ROW) => T = (row: ROW) => accessor.apply(row)
+  def aggregateFunc(aggIndices: Array[Int]) = (a: Row, b: Row) => a.aggregate(b, aggIndices)
+
 }
 
 class RowBasedStatementCompiler[ROW](val table: RowBasedTable[ROW]) extends StatementCompiler[Table] with AccessorCompiler {
@@ -66,8 +68,9 @@ class RowBasedStatementCompiler[ROW](val table: RowBasedTable[ROW]) extends Stat
           val groupedProcessData = if (stmt.groupBy != null) {
             //make sure group columns is in the expanded selects
             val groupByAccessors = stmt.groupBy.map(compileColumn[ROW](_, schema))
-            val groupByFunc = (row: ROW) => new Row(groupByAccessors.map(_(row)).toArray)
-            val groupedData = filteredData.groupBy(groupByFunc, selectFunc, groupByIndices).map(_.normalize)
+            val keyFunc = (row: ROW) => new Row(groupByAccessors.map(_(row)).toArray)
+            val aggFunc = RowBasedStatementCompiler.aggregateFunc(groupByIndices)
+            val groupedData = filteredData.groupBy(keyFunc, selectFunc, aggFunc).map(_.normalize)
             //            println("Grouped Data got " + filteredData)
             val havingData = if (stmt.having != null) {
               val havingFilter = RowBasedStatementCompiler.toFunc(havingExtractor)
@@ -96,7 +99,7 @@ class RowBasedStatementCompiler[ROW](val table: RowBasedTable[ROW]) extends Stat
           if (stmt.orderBy != null) {
             val (orderAccessors, ordering) = compileOrdering(stmt.orderBy, resultSchema)
             val keyFunc = (row: Row) => new Row(orderAccessors.map(_(row)).toArray)
-            groupedProcessData.sortBy(keyFunc, ordering, scala.reflect.classTag[Row])
+            groupedProcessData.sortBy(keyFunc, ordering)
           } else {
             groupedProcessData
           }
@@ -117,7 +120,7 @@ class RowBasedStatementCompiler[ROW](val table: RowBasedTable[ROW]) extends Stat
           } else orderedData
       }.next("Return the table") {
         groupedProcessData =>
-          table.createTable(resultSchema, groupedProcessData)
+          table.createTable(resultSchema, groupedProcessData.resultData)
       }
     }
     execPlan
