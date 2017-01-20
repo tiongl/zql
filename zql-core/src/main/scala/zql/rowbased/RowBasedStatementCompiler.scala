@@ -3,12 +3,14 @@ package zql.rowbased
 import zql.core._
 import zql.schema.Schema
 
-object RowBasedCompiler {
+object RowBasedStatementCompiler {
   def toRowFunc[ROW](selects: Seq[ColumnAccessor[ROW, _]]) = (row: ROW) => new Row(selects.map(s => s.apply(row)).toArray)
   def toFunc[ROW, T](accessor: ColumnAccessor[ROW, T]): (ROW) => T = (row: ROW) => accessor.apply(row)
+  def aggregateFunc(aggIndices: Array[Int]) = (a: Row, b: Row) => a.aggregate(b, aggIndices)
+
 }
 
-class RowBasedCompiler[ROW](val table: RowBasedTable[ROW]) extends Compiler[RowBasedTable[Row]] with AccessorCompiler {
+class RowBasedStatementCompiler[ROW](val table: RowBasedTable[ROW]) extends StatementCompiler[Table] with AccessorCompiler {
 
   def validate(info: StatementInfo) = {
     val stmt = info.stmt
@@ -53,7 +55,7 @@ class RowBasedCompiler[ROW](val table: RowBasedTable[ROW]) extends Compiler[RowB
       first("Filter the data") {
         val rowBased = table.data.withOption(option)
         val filteredData = if (stmt.where != null) {
-          val filterAccessorFunc = RowBasedCompiler.toFunc(filterAccessor)
+          val filterAccessorFunc = RowBasedStatementCompiler.toFunc(filterAccessor)
           rowBased.filter(filterAccessorFunc)
         } else rowBased
         //        println("Filtered data got " + filteredData.asList.mkString("\n"))
@@ -61,16 +63,17 @@ class RowBasedCompiler[ROW](val table: RowBasedTable[ROW]) extends Compiler[RowB
       }.next("Grouping the data") {
         filteredData =>
           val groupByIndices = stmtInfo.groupByIndices
-          val selectFunc = RowBasedCompiler.toRowFunc(selects)
+          val selectFunc = RowBasedStatementCompiler.toRowFunc(selects)
           //TODO: the detection of aggregate func is problematic when we have multi-project before aggregate function
           val groupedProcessData = if (stmt.groupBy != null) {
             //make sure group columns is in the expanded selects
             val groupByAccessors = stmt.groupBy.map(compileColumn[ROW](_, schema))
-            val groupByFunc = (row: ROW) => new Row(groupByAccessors.map(_(row)).toArray)
-            val groupedData = filteredData.groupBy(groupByFunc, selectFunc, groupByIndices).map(_.normalize)
+            val keyFunc = (row: ROW) => new Row(groupByAccessors.map(_(row)).toArray)
+            val aggFunc = RowBasedStatementCompiler.aggregateFunc(groupByIndices)
+            val groupedData = filteredData.groupBy(keyFunc, selectFunc, aggFunc).map(_.normalize)
             //            println("Grouped Data got " + filteredData)
             val havingData = if (stmt.having != null) {
-              val havingFilter = RowBasedCompiler.toFunc(havingExtractor)
+              val havingFilter = RowBasedStatementCompiler.toFunc(havingExtractor)
               groupedData.filter(havingFilter)
             } else {
               groupedData
@@ -78,10 +81,10 @@ class RowBasedCompiler[ROW](val table: RowBasedTable[ROW]) extends Compiler[RowB
             //            println("Having data got " + filteredData.asList.mkString("\n"))
             havingData
           } else if (groupByIndices.size > 0) { //this will trigger group by all
-            val selected = filteredData.select(selectFunc)
+            val selected = filteredData.map(selectFunc)
             selected.reduce((a: Row, b: Row) => a.aggregate(b, groupByIndices)).map(_.normalize)
           } else {
-            filteredData.select { selectFunc }
+            filteredData.map { selectFunc }
           }
           //          println("Grouped process data got " + groupedProcessData.asList.mkString("\n"))
           groupedProcessData
@@ -96,7 +99,7 @@ class RowBasedCompiler[ROW](val table: RowBasedTable[ROW]) extends Compiler[RowB
           if (stmt.orderBy != null) {
             val (orderAccessors, ordering) = compileOrdering(stmt.orderBy, resultSchema)
             val keyFunc = (row: Row) => new Row(orderAccessors.map(_(row)).toArray)
-            groupedProcessData.sortBy(keyFunc, ordering, scala.reflect.classTag[Row])
+            groupedProcessData.sortBy(keyFunc, ordering)
           } else {
             groupedProcessData
           }
@@ -117,7 +120,7 @@ class RowBasedCompiler[ROW](val table: RowBasedTable[ROW]) extends Compiler[RowB
           } else orderedData
       }.next("Return the table") {
         groupedProcessData =>
-          table.createTable(resultSchema, groupedProcessData)
+          table.createTable(resultSchema, groupedProcessData.resultData)
       }
     }
     execPlan

@@ -26,7 +26,7 @@ package object core {
 
   implicit def selectDistinct(cols: Column*) = new Selected(true, cols: _*)
 
-  implicit def statementAsTable(stmt: StatementWrapper): Table = stmt.statement().compile.execute()
+  //  implicit def statementAsTable(stmt: StatementWrapper): Table = stmt.statement().compile.execute()
 
   implicit def tableSeqToJoinedTable(tuple: Tuple2[Table, Table]) = tuple._1.join(tuple._2)
 

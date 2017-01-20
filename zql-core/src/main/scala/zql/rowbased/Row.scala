@@ -17,16 +17,16 @@ case class Row(val data: Array[Any]) extends Comparable[Row] {
   }
 
   def normalize: Row = {
-    data.zipWithIndex.map {
+    val newData = data.zipWithIndex.map {
       case (value, index) =>
         value match {
           case s: Aggregatable[_] =>
-            data(index) = s.value
+            s.value
           case any: AnyRef =>
             any
         }
     }
-    this
+    new Row(newData)
   }
 
   override lazy val hashCode = data.map(_.hashCode()).sum
@@ -36,6 +36,23 @@ case class Row(val data: Array[Any]) extends Comparable[Row] {
   override def toString = data.mkString(",")
 
   override def compareTo(o: Row): Int = Row.rowOrdering.compare(this, o)
+}
+
+class RowWithKey(data: Array[Any], val key: Row) extends Row(data) {
+  override def aggregate(row: Row, indices: Array[Int]): Row = {
+    val other = row.asInstanceOf[RowWithKey]
+    val r = super.aggregate(row, indices)
+    new RowWithKey(r.data, key)
+  }
+
+  override def normalize: Row = {
+    val nRow = super.normalize
+    new RowWithKey(nRow.data, key)
+  }
+
+  override def toString = {
+    super.toString + " withkey " + key.toString
+  }
 }
 
 object Row {
@@ -60,7 +77,6 @@ class RowOrdering(ascendings: Array[Boolean] = Array()) extends Ordering[Row] {
           } else {
             return comparedValue * -1
           }
-
         }
     }
     0

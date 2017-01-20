@@ -6,14 +6,17 @@ import org.apache.spark.sql.SparkSession
 import org.slf4j.LoggerFactory
 import zql.core.ExecutionPlan._
 import zql.core._
+import zql.rowbased.Row
 import zql.schema.{ JoinedSchema, Schema, SimpleSchema }
 import zql.sql.SqlGenerator
 
+import scala.reflect.ClassTag
+
 class SparkSQLTable(val session: SparkSession, val schema: Schema) extends Table {
 
-  override def collectAsList(): List[Any] = {
+  override def collectAsList[T: ClassTag](): List[T] = {
     val df = session.sql("select * from " + name)
-    df.collect().toList
+    df.collect().toList.asInstanceOf[List[T]]
   }
 
   override def join(t: Table) = t match {
@@ -23,9 +26,16 @@ class SparkSQLTable(val session: SparkSession, val schema: Schema) extends Table
       throw new IllegalArgumentException("Cannot join with different table type")
   }
 
-  override def compile(stmt: Statement): Executable[Table] = new SparkSQLCompiler(this, session).compile(stmt, schema)
+  override def compile(stmt: Statement): Executable[Table] = new SparkSQLStatementCompiler(this, session).compile(stmt, schema)
 
   override def as(alias: Symbol): Table = new SparkSQLTable(session, schema.as(alias))
+
+  override def collectAsRowList: List[Row] = {
+    val list = collectAsList[org.apache.spark.sql.Row]()
+    list.map {
+      sparkRow => new Row(sparkRow.toSeq.toArray)
+    }
+  }
 }
 
 object SparkSQLTable {
@@ -43,10 +53,12 @@ class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: Sp
 
   override def name: String = s"joined_${tb1.name}_${tb2.name}"
 
-  override def collectAsList(): List[Any] = ???
+  override def collectAsList[T: ClassTag](): List[T] = ???
+
+  override def collectAsRowList() = ???
 
   override def compile(stmt: Statement): Executable[Table] = {
-    new SparkSQLCompiler(this, session).compile(stmt, schema)
+    new SparkSQLStatementCompiler(this, session).compile(stmt, schema)
   }
 
   override def as(alias: Symbol) = throw new IllegalArgumentException("Not supported as on joined table")
@@ -54,8 +66,8 @@ class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: Sp
   override def join(table: Table): JoinedTable = throw new IllegalArgumentException("Not supported join as on joined table")
 }
 
-class SparkSQLCompiler(table: Table, session: SparkSession) extends Compiler[SparkSQLTable] {
-  val logger = LoggerFactory.getLogger(classOf[SparkSQLCompiler])
+class SparkSQLStatementCompiler(table: Table, session: SparkSession) extends StatementCompiler[SparkSQLTable] {
+  val logger = LoggerFactory.getLogger(classOf[SparkSQLStatementCompiler])
 
   override def compile(stmt: Statement, schema: Schema, option: CompileOption): Executable[SparkSQLTable] = {
     val execPlan = plan("Query") {

@@ -26,7 +26,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   }
 
   def executeAndMatch(statement: StatementWrapper, rows: List[Row]) = {
-    val results = statement.compile.execute().collectAsList().map(r => normalizeRow(r))
+    val results = statement.compile.execute().collectAsRowList.map(r => normalizeRow(r))
     println("Query = " + statement.statement().toSql())
     println("Results = " + results)
     println("Results size = " + results.length)
@@ -39,6 +39,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   //Operations
   it should "Support all operation" in supportAllOperations
+  it should "Support all operation 2" in supportAllOperations2
 
   //Selects
   it should "support select with math operations" in supportSelectWithMathOperations
@@ -94,7 +95,11 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
       select(one + 1, one - 1, one * 2, one / 2) from personTable,
       persons.map(p => new Row(Array(1 + 1, 1 - 1, 1 * 2, 1 / 2.toFloat)))
     )
+  }
 
+  def supportAllOperations2 = {
+    val one = new IntLiteral(1)
+    val str = new StringLiteral("test")
     //equality
     executeAndMatch(
       select(one > 1, one > 0, one > -1, one >= 1, one >= 0, one >= -1, one === 1, one === 0, one === -1, one !== 1, one !== 0, one !== -1, one < 1, one < 0, one < -1, one <= 1, one <= 0, one <= -1) from personTable,
@@ -254,7 +259,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   def supportSelectCount = {
     executeAndMatch(
       select(count(*) as 'myCount) from personTable,
-      List(new Row(Array(personTable.collectAsList().length)))
+      List(new Row(Array(persons.length)))
     )
   }
 

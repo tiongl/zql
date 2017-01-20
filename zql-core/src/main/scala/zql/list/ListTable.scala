@@ -23,25 +23,23 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
 
   implicit def listToListData[T: ClassTag](list: List[T]) = new ListData[T](list, option)
 
-  override def select(r: (ROW) => Row): RowBasedData[Row] = list.map(r).toList
-
   override def filter(filter: (ROW) => Boolean): RowBasedData[ROW] = list.filter(filter)
 
-  override def groupBy(keyFunc: (ROW) => Row, valueFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row] = {
-    Utils.groupBy[ROW, Row](list, keyFunc(_), valueFunc(_), _.aggregate(_, aggregatableIndices)).map(_.normalize).toList
+  override def groupBy(keyFunc: (ROW) => Row, valueFunc: (ROW) => Row, aggregateFunc: (Row, Row) => Row): RowBasedData[Row] = {
+    Utils.groupBy[ROW, Row](list, keyFunc(_), valueFunc(_), aggregateFunc).toList
   }
 
   override def reduce(reduceFunc: (ROW, ROW) => ROW) = List(list.reduce(reduceFunc))
 
-  override def map(mapFunc: (ROW) => Row) = list.map(mapFunc)
+  override def map[T: ClassTag](mapFunc: (ROW) => T) = list.map(mapFunc)
 
-  override def sortBy(keyFunc: (ROW) => Row, ordering: Ordering[Row], ctag: ClassTag[Row]) = new ListData(list.sortBy(keyFunc)(ordering))
+  override def sortBy[T: ClassTag](keyFunc: (ROW) => T, ordering: Ordering[T]) = new ListData(list.sortBy(keyFunc)(ordering))
 
   override def slice(offset: Int, until: Int) = list.slice(offset, until)
 
   override def size() = list.length
 
-  override def asList = list
+  override def asList[T] = list.asInstanceOf[List[T]]
 
   override def isLazy = false
 
@@ -49,7 +47,7 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
 
   override def distinct() = list.distinct
 
-  override def join(other: RowBasedData[Row], jointPoint: (Row) => Boolean): RowBasedData[Row] = {
+  override def join[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = {
     if (this.isInstanceOf[RowBasedData[Row]]) {
       other match {
         case rbd: ListData[Row] =>
@@ -74,4 +72,5 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
       throw new IllegalArgumentException("Can only join if this is instance of RowBasedData[Row]")
     }
   }
+
 }

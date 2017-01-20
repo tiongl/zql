@@ -3,6 +3,8 @@ package zql.rowbased
 import zql.core._
 import zql.schema.{ DefaultSchema, JoinedSchema, Schema }
 
+import scala.reflect.ClassTag
+
 class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]) extends JoinedTable(tb1, tb2) with AccessorCompiler {
 
   val table = this
@@ -11,15 +13,17 @@ class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]
 
   override def name: String = s"joined_${tb1.name}_${tb2.name}"
 
-  override def collectAsList(): List[Any] = ???
+  override def collectAsList[T: ClassTag](): List[T] = ???
+
+  override def collectAsRowList = ???
 
   override def compile(stmt: Statement): Executable[Table] = {
     //first get all the columns we need
     val option = new CompileOption
     option.put("stmtInfo", new StatementInfo(stmt, schema))
     val info = new StatementInfo(stmt, schema)
-    val com1 = new RowBasedCompiler(tb1)
-    val com2 = new RowBasedCompiler(tb2)
+    val com1 = new RowBasedStatementCompiler(tb1)
+    val com2 = new RowBasedStatementCompiler(tb2)
 
     val allColumnDefs: Seq[(Symbol, ColumnRef)] = info.columnDefs
     val t1Cols = allColumnDefs.filter(_._2.schema == tb1.schema)
@@ -39,8 +43,8 @@ class JoinedRowBasedTable[T1, T2](tb1: RowBasedTable[T1], tb2: RowBasedTable[T2]
     val selectFunc1 = (t1: T1) => new Row(select1.map(_(t1)).toArray)
     val selectFunc2 = (t2: T2) => new Row(select2.map(_(t2)).toArray)
 
-    val d1 = tb1.data.withOption(option).select(selectFunc1)
-    val d2 = tb2.data.withOption(option).select(selectFunc2)
+    val d1 = tb1.data.withOption(option).map(selectFunc1)
+    val d2 = tb2.data.withOption(option).map(selectFunc2)
 
     val allColumns = t1Cols ++ t2Cols
     val newCols = allColumns.zipWithIndex.map {

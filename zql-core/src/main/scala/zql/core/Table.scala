@@ -1,7 +1,10 @@
 package zql.core
 
+import zql.rowbased.Row
 import zql.schema.Schema
 import zql.sql.SqlGenerator
+
+import scala.reflect.ClassTag
 
 abstract class Table {
 
@@ -17,7 +20,9 @@ abstract class Table {
 
   def compile(stmt: Statement): Executable[Table]
 
-  def collectAsList(): List[Any]
+  def collectAsList[T: ClassTag](): List[T]
+
+  def collectAsRowList: List[Row]
 
   def toSql(gen: SqlGenerator): String = {
     val builder = new StringBuilder
