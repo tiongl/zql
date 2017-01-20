@@ -1,6 +1,6 @@
 package zql.rowbased
 
-import zql.core.CompileOption
+import zql.core.{ JoinType, CompileOption }
 
 import scala.reflect.ClassTag
 
@@ -9,7 +9,8 @@ abstract class RowBasedData[ROW: ClassTag] {
   def withOption(option: CompileOption): RowBasedData[ROW]
   def slice(offset: Int, until: Int): RowBasedData[ROW]
   def filter(filter: (ROW) => Boolean): RowBasedData[ROW]
-  def groupBy(keyFunc: (ROW) => Row, selectFunc: (ROW) => Row, groupFunc: (Row, Row) => Row): RowBasedData[Row]
+  def groupBy(keyFunc: (ROW) => Row, selectFunc: (ROW) => Row,
+    groupFunc: (Row, Row) => Row): RowBasedData[Row]
 
   def reduce(reduceFunc: (ROW, ROW) => ROW): RowBasedData[ROW]
   def map[T: ClassTag](mapFunc: (ROW) => T): RowBasedData[T]
@@ -18,7 +19,14 @@ abstract class RowBasedData[ROW: ClassTag] {
   def asList[T]: List[T]
   def isLazy: Boolean
   def distinct(): RowBasedData[ROW]
-  def join[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row = new RowCombiner[ROW, T]()): RowBasedData[Row]
+  def joinData[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean,
+    rowifier: (ROW, T) => Row): RowBasedData[Row]
+  def joinData[T: ClassTag](
+    other: RowBasedData[T],
+    leftKeyFunc: (ROW) => Row, rightKeyFunc: (T) => Row,
+    leftSelect: (ROW) => Row, rightSelect: (T) => Row,
+    joinType: JoinType
+  ): RowBasedData[Row]
 
   /** for doing any last step of result preparation **/
   def resultData: RowBasedData[ROW] = this

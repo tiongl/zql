@@ -2,7 +2,15 @@ package zql.core
 
 import zql.sql.SqlGenerator
 
-abstract class JoinedTable(val tb1: Table, val tb2: Table) extends Table {
+sealed class JoinType(val name: String)
+object JoinType {
+  val leftJoin = new JoinType("left")
+  val rightJoin = new JoinType("right")
+  val fullJoin = new JoinType("full")
+  val innerJoin = new JoinType("inner")
+}
+
+abstract class JoinedTable(val tb1: Table, val tb2: Table, val joinType: JoinType) extends Table {
   var jointPoint: Condition = null
 
   def on(cond: Condition): JoinedTable = {
@@ -26,4 +34,23 @@ abstract class JoinedTable(val tb1: Table, val tb2: Table) extends Table {
     return sb.toString
   }
 
+  override def as(alias: Symbol) = throw new IllegalArgumentException("Not supported as on joined table")
+
+  override def join(table: Table): JoinedTable =
+    throw new IllegalArgumentException("Not supported join as on joined table")
+
+  override def innerJoin(table: Table): JoinedTable =
+    throw new IllegalArgumentException("Not supported join as on joined table")
+
+  override def leftJoin(table: Table): JoinedTable =
+    throw new IllegalArgumentException("Not supported join as on joined table")
+
+  override def rightJoin(table: Table): JoinedTable =
+    throw new IllegalArgumentException("Not supported join as on joined table")
+
+  override def fullJoin(table: Table): JoinedTable =
+    throw new IllegalArgumentException("Not supported join as on joined table")
+
+  protected def joinWithType(table: Table, jt: JoinType): JoinedTable =
+    throw new IllegalArgumentException("Not supported join as on joined table")
 }

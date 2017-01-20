@@ -1,7 +1,7 @@
 package zql.list
 
 import zql.core._
-import zql.rowbased.{ Row, RowBasedData, RowBasedTable }
+import zql.rowbased.{ RowCombiner, Row, RowBasedData, RowBasedTable }
 import zql.schema.Schema
 import zql.util.Utils
 
@@ -47,7 +47,7 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
 
   override def distinct() = list.distinct
 
-  override def join[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = {
+  override def joinData[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = {
     if (this.isInstanceOf[RowBasedData[Row]]) {
       other match {
         case rbd: ListData[Row] =>
@@ -73,4 +73,29 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
     }
   }
 
+  override def joinData[T: ClassTag](
+    other: RowBasedData[T],
+    leftKeyFunc: (ROW) => Row, rightKeyFunc: (T) => Row,
+    leftSelect: (ROW) => Row, rightSelect: (T) => Row,
+    joinType: JoinType
+  ): RowBasedData[Row] = joinType match {
+    case JoinType.innerJoin =>
+      other match {
+        case rhs: ListData[T] =>
+          val leftMap = Utils.groupBy[ROW, Row, Row](list, leftKeyFunc, leftSelect)
+          val rightMap = Utils.groupBy[T, Row, Row](rhs.list, rightKeyFunc, rightSelect)
+          val allRows = leftMap.flatMap {
+            case (leftkey, listOfROW) =>
+              rightMap.get(leftkey) match {
+                case None => Seq()
+                case Some(listOfT) =>
+                  Utils.crossProduct(listOfROW, listOfT, new RowCombiner[Row, Row]())
+              }
+          }
+          allRows.toList
+        case _ =>
+          throw new IllegalArgumentException("Joining with " + other.getClass + " is not supported")
+      }
+
+  }
 }

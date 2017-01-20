@@ -41,11 +41,23 @@ case class StatementInfo(stmt: Statement, schema: Schema) {
     columns.toList
   }
 
+  val joinColumnDefs: Seq[(Symbol, ColumnRef)] = stmt.from match {
+    case jt: JoinedTable =>
+      if (jt.jointPoint != null) {
+        jt.jointPoint.requiredColumns.map {
+          sym => (sym, stmt.from.schema.resolveColumnDef(sym))
+        }
+      } else Seq()
+    case _ =>
+      Seq()
+  }
+
   val columnDefs: Seq[(Symbol, ColumnRef)] =
     allRequiredColumnNames.map {
       sym =>
         (sym, stmt.from.schema.resolveColumnDef(sym))
     }
+
   val columnDefsMap = columnDefs.toMap
 
   val groupByIndices = expandedSelects.zipWithIndex.filter(_._1.isInstanceOf[AggregateFunction[_]]).map(_._2).toArray

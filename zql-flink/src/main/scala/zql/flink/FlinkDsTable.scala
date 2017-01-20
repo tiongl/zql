@@ -2,14 +2,15 @@ package zql.flink
 
 import java.lang.Iterable
 
-import org.apache.flink.api.common.functions.{ FlatMapFunction, GroupCombineFunction }
+import org.apache.flink.api.common.functions.{ MapFunction, FlatMapFunction, GroupCombineFunction }
 import org.apache.flink.api.common.operators.Order
 import org.apache.flink.api.common.typeinfo.{ BasicTypeInfo, TypeInformation }
 import org.apache.flink.api.scala.DataSet
 import org.apache.flink.util.Collector
 import zql.core._
-import zql.rowbased.{ Row, RowBasedTable, RowBasedData }
+import zql.rowbased.{ RowCombiner, Row, RowBasedTable, RowBasedData }
 import zql.schema.Schema
+import zql.util.Utils
 
 import scala.collection.JavaConversions._
 import scala.reflect.ClassTag
@@ -55,7 +56,7 @@ class FlinkData[ROW: ClassTag](val ds: DataSet[ROW], val option: CompileOption =
 
   //  def groupBy(keyFunc: (ROW) => Row, selectFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row]
   override def groupBy(keyFunc: (ROW) => Row, valueFunc: (ROW) => Row, groupFunc: (Row, Row) => Row): RowBasedData[Row] = {
-    implicit val seqKeyTypeInfo = createTypeInfo(stmtInfo.stmt.groupBy.map(_.dataType))
+    implicit val keyTypeInfo = createTypeInfo(stmtInfo.stmt.groupBy.map(_.dataType))
     implicit val rowTypeInfo = createTypeInfo(stmtInfo.expandedSelects.map(_.dataType))
     val func = new GroupCombineFunction[ROW, Row] {
       override def combine(values: Iterable[ROW], out: Collector[Row]): Unit = {
@@ -63,10 +64,10 @@ class FlinkData[ROW: ClassTag](val ds: DataSet[ROW], val option: CompileOption =
         out.collect(outputRow)
       }
     }
-    ds.groupBy(keyFunc)(seqKeyTypeInfo).combineGroup(func)(rowTypeInfo, scala.reflect.classTag[Row])
+    ds.groupBy(keyFunc)(keyTypeInfo).combineGroup(func)(rowTypeInfo, scala.reflect.classTag[Row])
   }
 
-  override def join[T: ClassManifest](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = {
+  override def joinData[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = {
     val otherDs = other.asInstanceOf[FlinkData[T]].ds
     val joined = this.asInstanceOf[FlinkData[(ROW, T)]].ds.join(otherDs)
     //    stmtInfo.stmt.from.
@@ -82,17 +83,35 @@ class FlinkData[ROW: ClassTag](val ds: DataSet[ROW], val option: CompileOption =
     crossProduct.flatMap { mapFunc }(typeInfo, scala.reflect.classTag[Row])
   }
 
-  override def sortBy[T: ClassManifest](keyFunc: (ROW) => T, ordering: Ordering[T]): RowBasedData[ROW] = {
+  override def sortBy[T: ClassTag](keyFunc: (ROW) => T, ordering: Ordering[T]): RowBasedData[ROW] = {
     implicit val keyTypeInfo = createTypeInfo(stmtInfo.stmt.orderBy.map(_.dataType)).asInstanceOf[TypeInformation[T]]
-    //    ds.setParallelism(1).sortPartition(keyFunc, Order.ASCENDING)
+    //TODO; This is just partially working as apache flink doesn't support global sort
     ds.partitionByRange(keyFunc).sortPartition(keyFunc, Order.ASCENDING)
+  }
+
+  override def joinData[T: ClassTag](other: RowBasedData[T], leftKeyFunc: (ROW) => Row, rightKeyFunc: (T) => Row,
+    leftSelect: (ROW) => Row, rightSelect: (T) => Row,
+    joinType: JoinType): RowBasedData[Row] = other match {
+    case rightData: FlinkData[T] =>
+      //TODO: Check whether empty key func would cause single hotspot
+      implicit val typeInfo = new BasicRowTypeInfo
+      val joinedDataset = ds.join(rightData.ds).where(leftKeyFunc(_)).equalTo(rightKeyFunc)
+      val combiner = new RowCombiner[Row, Row]
+      joinedDataset.map[Row] {
+        t: (ROW, T) =>
+          val left = leftSelect(t._1)
+          val right = rightSelect(t._2)
+          combiner.apply(left, right)
+      }
+    case _ =>
+      throw new IllegalArgumentException("Unsupported join type " + other.toString)
   }
 }
 
 class FlinkDsTable[T: ClassTag](schema: Schema, dsData: FlinkData[T]) extends RowBasedTable[T](schema) {
   override def data: RowBasedData[T] = dsData
 
-  override def createTable[T: ClassManifest](newSchema: Schema, rowBased: RowBasedData[T]): RowBasedTable[T] = new FlinkDsTable[T](newSchema, rowBased.asInstanceOf[FlinkData[T]])
+  override def createTable[T: ClassTag](newSchema: Schema, rowBased: RowBasedData[T]): RowBasedTable[T] = new FlinkDsTable[T](newSchema, rowBased.asInstanceOf[FlinkData[T]])
 
 }
 

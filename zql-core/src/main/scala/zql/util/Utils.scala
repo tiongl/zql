@@ -19,6 +19,22 @@ object Utils {
     linkedHash.values
   }
 
+  def groupBy[T, U, V](traversable: Traversable[T], keyFunc: (T) => U, valueFunc: (T) => V): mutable.Map[U, Seq[V]] = {
+    val linkedHash = new mutable.LinkedHashMap[U, Seq[V]]
+    val results = traversable.foreach {
+      data =>
+        val key = keyFunc.apply(data)
+        val value = valueFunc.apply(data)
+        linkedHash.get(key) match {
+          case None =>
+            linkedHash.put(key, Seq(value))
+          case Some(current) =>
+            linkedHash.put(key, current ++ Seq(value))
+        }
+    }
+    linkedHash
+  }
+
   def compare(a: Any, b: Any): Int = {
     (a, b) match {
       case (ai: Int, bi: Int) =>
@@ -54,6 +70,15 @@ object Utils {
   def >=(a: Any, b: Any): Boolean = {
     val compared = compare(a, b)
     compared == 1 || compared == 0
+  }
+
+  def crossProduct[T, U, V](lhs: Iterable[T], rhs: Iterable[U], func: (T, U) => V): Iterable[V] = {
+    lhs.flatMap {
+      left =>
+        rhs.map {
+          right => func(left, right)
+        }
+    }
   }
 
 }

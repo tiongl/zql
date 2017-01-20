@@ -3,7 +3,7 @@ package zql.rowbased
 import zql.core.Aggregatable
 import zql.util.Utils
 
-case class Row(val data: Array[Any]) extends Comparable[Row] {
+case class Row(val data: Array[Any] = Array()) extends Comparable[Row] {
 
   def aggregate(row: Row, indices: Array[Int]): Row = {
     //TODO: make sure this won't have side effect as we use shallow copy

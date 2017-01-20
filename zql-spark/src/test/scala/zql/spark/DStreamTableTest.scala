@@ -55,12 +55,17 @@ class DStreamTableTest extends StreamingTableTest with BeforeAndAfterEach {
     println("SQL = " + statement.statement().toSql())
     println("Starting spark context")
     ssc.start()
-    personRdds.foreach {
-      p =>
-        personQueue.enqueue(p)
-        Thread.sleep(1000)
+    for (i <- 0 until personRdds.length) {
+      personQueue.enqueue(personRdds(i))
+      if (i < departmentRdds.length) {
+        departmentQueue.enqueue(departmentRdds(i))
+      }
+      Thread.sleep(1000)
     }
-    Thread.sleep(5000)
+    while (personQueue.size > 0 && departmentQueue.size > 0) {
+      Thread.sleep(1000)
+    }
+    Thread.sleep(1000)
     val results = collector.collect.asInstanceOf[List[Row]]
     println("Results = " + results.sorted.mkString(", "))
     println("Expected = " + rows.sorted.mkString(", "))
@@ -72,5 +77,91 @@ class DStreamTableTest extends StreamingTableTest with BeforeAndAfterEach {
     println("Stopping spark context")
     ssc.stop()
     ssc = null
+  }
+
+  override def supportCrossProductJoin = {
+    executeAndMatch(
+      select(*) from (personTable as 't1, personTable as 't2),
+      persons.flatMap {
+        t1 =>
+          persons.map {
+            t2 =>
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.firstName, t2.lastName, t2.age, t2.departmentId)
+              new Row(all)
+          }
+      }
+    )
+  }
+
+  override def supportSameTableJoinTable = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) join (personTable as 't2)),
+      persons.flatMap {
+        t1 =>
+          persons.map {
+            t2 =>
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.firstName, t2.lastName, t2.age, t2.departmentId)
+              new Row(all)
+          }
+      }
+    )
+  }
+
+  override def supportSameTableJoinOn = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) join (personTable as 't2) on (c"t1.id" === c"t2.id")),
+      persons.map {
+        t1 =>
+          val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId)
+          new Row(all)
+      }
+    )
+  }
+
+  override def supportSameTableJoinTableWithFilter = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) join (personTable as 't2) on (c"t1.id" === c"t2.id")) where c"t1.age" > 10,
+      persons.filter(_.age > 10).map {
+        t1 =>
+          val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId)
+          new Row(all)
+      }
+    )
+  }
+
+  override def supportJoinTableWithFilter = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) join (departmentTable as 't2) on (c"t1.departmentId" === c"t2.id")) where c"t1.age" > 10,
+      persons.filter(_.age > 10).flatMap {
+        t1 =>
+          departments.flatMap {
+            t2 =>
+              if (t1.departmentId == t2.id) {
+                val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.name)
+                Seq(new Row(all))
+              } else {
+                Seq()
+              }
+          }
+      }
+    )
+  }
+
+  override def supportJoinTableWithOriginalColumnName = {
+    executeAndMatch(
+      select('firstName, 'lastName, 'name) from ((personTable) join (departmentTable) on (c"person.departmentId" === c"department.id")) where c"person.age" > 10,
+      persons.filter(_.age > 10).sortBy(_.firstName).flatMap {
+        t1 =>
+          departments.flatMap {
+            t2 =>
+              if (t1.departmentId == t2.id) {
+                val all = Array[Any](t1.firstName, t1.lastName, t2.name)
+                Seq(new Row(all))
+              } else {
+                Seq()
+              }
+          }
+      }
+    )
   }
 }

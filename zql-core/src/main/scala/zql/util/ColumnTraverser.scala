@@ -7,7 +7,7 @@ import zql.core._
  *
  * @tparam R
  */
-abstract class ColumnTraverser[R, C] {
+abstract class ColumnTraverser[R, C](val errMessage: String = "Unsupported operation") {
 
   def traverse(col: Column, context: C): R = col match {
     //some base cases
@@ -45,35 +45,37 @@ abstract class ColumnTraverser[R, C] {
     case af: AggregateFunction[_] => handleAggregateFunction(af, context)
   }
 
-  def traverseDataColumn(data: DataColumn, context: C): R = ???
+  def traverseDataColumn(data: DataColumn, context: C): R = err
 
-  def traverseOrderSpec(os: OrderSpec, context: C): R = ???
+  def traverseOrderSpec(os: OrderSpec, context: C): R = err
 
-  def traverseLiteral(literal: LiteralColumn[_], context: C): R = ???
+  def traverseLiteral(literal: LiteralColumn[_], context: C): R = err
 
-  def handleNotCondition(nc: NotCondition, context: C): R = ???
+  def handleNotCondition(nc: NotCondition, context: C): R = err
 
-  def handleAllColumn(ac: AllColumn, context: C): R = ???
+  def handleAllColumn(ac: AllColumn, context: C): R = err
 
-  def handleBinaryFunction(func: BinaryFunction[_], context: C): R = ???
+  def handleBinaryFunction(func: BinaryFunction[_], context: C): R = err
 
-  def handleEquals(ec: EqualityCondition, context: C): R = ???
+  def handleEquals(ec: EqualityCondition, context: C): R = err
 
-  def handleNotEquals(ne: NotEquals, context: C): R = ???
+  def handleNotEquals(ne: NotEquals, context: C): R = err
 
-  def handleLessThan(lt: LessThan, context: C): R = ???
+  def handleLessThan(lt: LessThan, context: C): R = err
 
-  def handleLessThanEquals(lte: LessThanEquals, context: C): R = ???
+  def handleLessThanEquals(lte: LessThanEquals, context: C): R = err
 
-  def handleGreaterThan(gt: GreaterThan, context: C): R = ???
+  def handleGreaterThan(gt: GreaterThan, context: C): R = err
 
-  def handleGreaterThanEquals(egte: Any, context: C): R = ???
+  def handleGreaterThanEquals(egte: Any, context: C): R = err
 
-  def handleAndCondition(ac: AndCondition, context: C): R = ???
+  def handleAndCondition(ac: AndCondition, context: C): R = err
 
-  def handleOrCondition(bc: OrCondition, context: C): R = ???
+  def handleOrCondition(bc: OrCondition, context: C): R = err
 
-  def handleAggregateFunction(af: AggregateFunction[_], context: C): R = ???
+  def handleAggregateFunction(af: AggregateFunction[_], context: C): R = err
 
-  def handleSubSelect(ss: SubSelect, context: C): R = ???
+  def handleSubSelect(ss: SubSelect, context: C): R = err
+
+  def err = throw new UnsupportedOperationException(errMessage)
 }

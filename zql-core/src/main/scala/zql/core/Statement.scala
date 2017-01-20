@@ -78,6 +78,16 @@ class SubQuery(statement: StatementWrapper) extends Table {
   override def toSql(gen: SqlGenerator): String = {
     "(" + statement.statement().toSql() + ")"
   }
+
+  override def innerJoin(table: Table): JoinedTable = ???
+
+  override def leftJoin(table: Table): JoinedTable = ???
+
+  override def rightJoin(table: Table): JoinedTable = ???
+
+  override def fullJoin(table: Table): JoinedTable = ???
+
+  override protected def joinWithType(table: Table, jt: JoinType): JoinedTable = ???
 }
 
 class Selected(distinct: Boolean, cols: Column*) extends Fromable {

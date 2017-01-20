@@ -4,8 +4,9 @@ import java.io._
 import java.util
 
 import org.apache.flink.api.common.ExecutionConfig
-import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.typeinfo.{ BasicTypeInfo, TypeInformation }
 import org.apache.flink.api.common.typeutils.CompositeType.{ TypeComparatorBuilder, FlatFieldDescriptor }
+import org.apache.flink.api.common.typeutils.base.BasicTypeComparator
 import org.apache.flink.api.common.typeutils.{ TypeComparator, CompositeType, TypeSerializer }
 import org.apache.flink.api.java.typeutils.runtime.TupleComparatorBase
 import org.apache.flink.core.memory.{ MemorySegment, DataOutputView, DataInputView }
@@ -92,7 +93,7 @@ class GenericTypeSerializer[T: ClassTag](func: () => T) extends TypeSerializer[T
 
   override def toString: String = "RowTypeSerializer"
 
-  override def equals(obj: Any): Boolean = false
+  override def equals(obj: Any): Boolean = obj.isInstanceOf[GenericTypeSerializer[T]]
 
   override def hashCode: Int = 0
 }
@@ -119,6 +120,38 @@ class GenericCompositeTypeInfo[T: ClassTag] extends CompositeType[T](scala.refle
   override def getArity: Int = ???
 
   override def isTupleType: Boolean = ???
+}
+
+class BasicRowTypeComparator(ascending: Boolean) extends BasicTypeComparator[Row](ascending) {
+  override def getNormalizeKeyLen: Int = -1
+
+  override def putNormalizedKey(record: Row, target: MemorySegment, offset: Int, numBytes: Int): Unit = ???
+
+  override def isNormalizedKeyPrefixOnly(keyBytes: Int): Boolean = ???
+
+  override def compareSerialized(firstSource: DataInputView, secondSource: DataInputView): Int = ???
+
+  override def supportsNormalizedKey(): Boolean = false
+
+  override def duplicate(): TypeComparator[Row] = new BasicRowTypeComparator(ascending)
+}
+
+class BasicRowTypeInfo extends BasicTypeInfo[Row](classOf[Row], Array(classOf[Row]), new GenericTypeSerializer[Row](() => new Row()), classOf[BasicRowTypeComparator]) {
+  override def isBasicType: Boolean = true
+
+  override def getTotalFields: Int = 1
+
+  override def canEqual(obj: scala.Any): Boolean = obj.isInstanceOf[BasicRowTypeInfo]
+
+  override def createSerializer(config: ExecutionConfig): TypeSerializer[Row] = new GenericTypeSerializer[Row](() => new Row())
+
+  override def getArity: Int = 1
+
+  override def isKeyType: Boolean = true
+
+  override def getTypeClass: Class[Row] = classOf[Row]
+
+  override def isTupleType: Boolean = false
 }
 
 class RowTypeInfo(typeInfo: TypeInformation[_]*) extends CompositeType[Row](classOf[Row]) {
@@ -189,3 +222,4 @@ class RowTypeInfo(typeInfo: TypeInformation[_]*) extends CompositeType[Row](clas
   }
 
 }
+
