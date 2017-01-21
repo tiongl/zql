@@ -49,6 +49,12 @@ object Utils {
         Ordering.String.compare(as, bs)
       case (as: Boolean, bs: Boolean) =>
         Ordering.Boolean.compare(as, bs)
+      case (null, null) =>
+        0
+      case (null, _) =>
+        -1
+      case (_, null) =>
+        1
       case _ =>
         throw new IllegalArgumentException("Unknown type for comparison " + a + " " + b)
     }

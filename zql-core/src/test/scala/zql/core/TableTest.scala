@@ -25,14 +25,19 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
     o STRING 'name
   }
 
-  def executeAndMatch(statement: StatementWrapper, rows: List[Row]) = {
+  def executeAndMatch(statement: StatementWrapper, rows: List[Row], sortCompare: Boolean = false) = {
     val results = statement.compile.execute().collectAsRowList.map(r => normalizeRow(r))
     println("Query = " + statement.statement().toSql())
     println("Results = " + results)
     println("Results size = " + results.length)
     println("Expected = " + rows)
     println("Expected size = " + rows.size)
-    results should be(rows)
+    sortCompare match {
+      case true =>
+        results.sorted should be(rows.sorted)
+      case false =>
+        results should be(rows)
+    }
   }
 
   def normalizeRow(row: Any): Row = row.asInstanceOf[Row]
@@ -83,6 +88,9 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   it should "support (same table) join with filter (same table)" in supportSameTableJoinTableWithFilter
   it should "support join with original column name" in supportJoinTableWithOriginalColumnName
   it should "support join with filter (different table)" in supportJoinTableWithFilter
+  it should "support left join " in supportLeftJoin
+  it should "support right join " in supportRightJoin
+  it should "support full join " in supportFullJoin
 
   //misc
   it should "support table alias" in supportTableAlias
@@ -396,7 +404,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
 
   def supportJoinTableWithOriginalColumnName = {
     executeAndMatch(
-      select('firstName, 'lastName, 'name) from ((personTable) join (departmentTable) on (c"person.departmentId" === c"department.id")) where c"person.age" > 10 orderBy (c"firstName"),
+      select('firstName, 'lastName, 'name) from ((personTable) join (departmentTable) on (c"person.departmentId" === c"department.id")) where c"person.age" > 10,
       persons.filter(_.age > 10).sortBy(_.firstName).flatMap {
         t1 =>
           departments.flatMap {
@@ -408,7 +416,79 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
                 Seq()
               }
           }
-      }
+      },
+      true
+    )
+  }
+
+  def supportLeftJoin = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) leftJoin (departmentTable as 't2) on (c"t1.departmentId" === c"t2.id")),
+      leftJoinResults,
+      true
+    )
+  }
+
+  val leftJoinResults = {
+    persons.flatMap {
+      t1 =>
+        val results = departments.flatMap {
+          t2 =>
+            if (t1.departmentId == t2.id) {
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.name)
+              Seq(new Row(all))
+            } else {
+              Seq()
+            }
+        }
+        if (results.size == 0) {
+          val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, null, null)
+          Seq(new Row(all))
+        } else {
+          results
+        }
+    }
+  }
+
+  def supportRightJoin = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) rightJoin (departmentTable as 't2) on (c"t1.departmentId" === c"t2.id")),
+      rightJoinResults,
+      true
+    )
+  }
+
+  val rightJoinResults = {
+    departments.flatMap {
+      t2 =>
+        val results = persons.flatMap {
+          t1 =>
+            if (t1.departmentId == t2.id) {
+              val all = Array(t1.id, t1.firstName, t1.lastName, t1.age, t1.departmentId, t2.id, t2.name)
+              Seq(new Row(all))
+            } else {
+              Seq()
+            }
+        }
+        if (results.size == 0) {
+          val all = Array(null, null, null, null, null, t2.id, t2.name)
+          Seq(new Row(all))
+        } else {
+          results
+        }
+    }
+  }
+
+  val fullJoinResults = {
+    val all = leftJoinResults ++ rightJoinResults
+    all.seq.toSet.toList
+  }
+
+  def supportFullJoin = {
+    executeAndMatch(
+      select(*) from ((personTable as 't1) fullJoin (departmentTable as 't2) on (c"t1.departmentId" === c"t2.id")),
+      fullJoinResults,
+      true
     )
   }
 }

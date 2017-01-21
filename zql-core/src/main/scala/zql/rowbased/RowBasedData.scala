@@ -1,8 +1,15 @@
 package zql.rowbased
 
 import zql.core.{ JoinType, CompileOption }
+import zql.rowbased.RowBuilder.BUILDER
 
 import scala.reflect.ClassTag
+
+abstract class RowBuilder[T](val card: Int) extends BUILDER[T] with Serializable
+
+object RowBuilder {
+  type BUILDER[T] = (T) => Row
+}
 
 abstract class RowBasedData[ROW: ClassTag] {
   def option: CompileOption
@@ -19,12 +26,11 @@ abstract class RowBasedData[ROW: ClassTag] {
   def asList[T]: List[T]
   def isLazy: Boolean
   def distinct(): RowBasedData[ROW]
-  def joinData[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean,
-    rowifier: (ROW, T) => Row): RowBasedData[Row]
-  def joinData[T: ClassTag](
+  def crossJoin[T: ClassTag](other: RowBasedData[T], leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T]): RowBasedData[Row]
+  def joinWithKey[T: ClassTag](
     other: RowBasedData[T],
-    leftKeyFunc: (ROW) => Row, rightKeyFunc: (T) => Row,
-    leftSelect: (ROW) => Row, rightSelect: (T) => Row,
+    leftKeyFunc: RowBuilder[ROW], rightKeyFunc: RowBuilder[T],
+    leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T],
     joinType: JoinType
   ): RowBasedData[Row]
 
@@ -32,10 +38,3 @@ abstract class RowBasedData[ROW: ClassTag] {
   def resultData: RowBasedData[ROW] = this
 }
 
-class RowCombiner[A, B] extends ((A, B) => Row) with Serializable {
-  override def apply(v1: A, v2: B): Row = {
-    val r1 = v1.asInstanceOf[Row]
-    val r2 = v2.asInstanceOf[Row]
-    new Row(r1.data ++ r2.data)
-  }
-}

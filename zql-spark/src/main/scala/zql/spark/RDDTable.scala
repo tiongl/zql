@@ -3,7 +3,7 @@ package zql.spark
 import org.apache.spark.rdd.RDD
 import zql.core
 import zql.core._
-import zql.rowbased.{ RowCombiner, Row, RowBasedTable, RowBasedData }
+import zql.rowbased._
 import zql.schema.Schema
 import zql.util.Utils
 import scala.reflect.ClassTag
@@ -43,34 +43,78 @@ class RDDData[ROW: ClassTag](val rdd: RDD[ROW], val option: CompileOption = new 
 
   override def distinct(): RowBasedData[ROW] = rdd.distinct()
 
-  override def joinData[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = other match {
+  override def crossJoin[T: ClassTag](other: RowBasedData[T], leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T]): RowBasedData[Row] = other match {
     case rddData: RDDData[T] =>
       rdd.cartesian(rddData.rdd).map {
-        case (r1, r2) => rowifier(r1, r2)
-      }.filter(jointPoint.apply(_))
+        case (r1, r2) =>
+          val left = leftSelect(r1)
+          val right = rightSelect(r2)
+          Row.combine(left, right)
+      }
     case _ =>
       throw new IllegalArgumentException("Unsupported join type " + other.toString)
   }
 
-  override def joinData[T: ClassTag](
+  override def joinWithKey[T: ClassTag](
     other: RowBasedData[T],
-    leftKeyFunc: (ROW) => Row, rightKeyFunc: (T) => Row,
-    leftSelect: (ROW) => Row, rightSelect: (T) => Row,
+    leftKeyFunc: RowBuilder[ROW], rightKeyFunc: RowBuilder[T],
+    leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T],
     joinType: JoinType
-  ): RowBasedData[Row] = other match {
-    case rightData: RDDData[T] =>
-      //TODO: Check whether empty key func would cause single hotspot
-      val left = rdd.groupBy(leftKeyFunc)
-      val right = rightData.rdd.groupBy(rightKeyFunc)
-      val joined = left.join(right)
-      joined.map(_._2).flatMap {
-        case (leftList, rightList) =>
-          val leftSelected = leftList.map(leftSelect(_))
-          val rightSelected = rightList.map(rightSelect(_))
-          Utils.crossProduct(leftSelected, rightSelected, new RowCombiner[Row, Row]()).seq
-      }
-    case _ =>
-      throw new IllegalArgumentException("Unsupported join type " + other.toString)
+  ): RowBasedData[Row] = {
+
+    other match {
+      case rightData: RDDData[T] =>
+        //TODO: Check whether empty key func would cause single hotspot
+        val left = rdd.groupBy(leftKeyFunc)
+        val right = rightData.rdd.groupBy(rightKeyFunc)
+        joinType match {
+          case JoinType.innerJoin =>
+            val joined = left.join(right)
+            joined.map(_._2).flatMap {
+              case (leftList, rightList) =>
+                val leftSelected = leftList.map(leftSelect(_))
+                val rightSelected = rightList.map(rightSelect(_))
+                Row.crossProduct(leftSelected, rightSelected).seq
+            }
+          case JoinType.leftJoin =>
+            val joined = left.leftOuterJoin(right)
+            joined.map(_._2).flatMap {
+              case (leftList, rightListOpt) =>
+                val leftSelected = leftList.map(leftSelect(_))
+                val rightSelected = RDDData.checkRowsOrReturnEmpty(rightListOpt, rightSelect)
+                Row.crossProduct(leftSelected, rightSelected).seq
+            }
+          case JoinType.rightJoin =>
+            val joined = left.rightOuterJoin(right)
+            joined.map(_._2).flatMap {
+              case (leftListOpt, rightList) =>
+                val rightSelected = rightList.map(rightSelect(_))
+                val leftSelected = RDDData.checkRowsOrReturnEmpty(leftListOpt, leftSelect)
+                Row.crossProduct(leftSelected, rightSelected).seq
+            }
+          case JoinType.fullJoin =>
+            val joined = left.fullOuterJoin(right)
+            joined.map(_._2).flatMap {
+              case (leftListOpt, rightListOpt) =>
+                val rightSelected = RDDData.checkRowsOrReturnEmpty(rightListOpt, rightSelect)
+                val leftSelected = RDDData.checkRowsOrReturnEmpty(leftListOpt, leftSelect)
+                Row.crossProduct(leftSelected, rightSelected).seq
+            }
+        }
+
+      case _ =>
+        throw new IllegalArgumentException("Unsupported join type " + other.toString)
+    }
+  }
+
+}
+
+object RDDData {
+  def checkRowsOrReturnEmpty[A](rddOpt: Option[Iterable[A]], builder: RowBuilder[A]): Iterable[Row] = {
+    rddOpt match {
+      case None => Seq(Row.empty(builder.card))
+      case Some(rdd) => rdd.map(builder(_))
+    }
   }
 }
 

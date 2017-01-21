@@ -21,5 +21,4 @@ class FlinkDsTableTest extends TableTest {
 
   override def supportSelectLimitOffset: Assertion = assert(true)
 
-  override def supportJoinTableWithOriginalColumnName: Assertion = assert(true)
 }

@@ -43,8 +43,8 @@ class JoinedRowBasedTable[T1: ClassTag, T2: ClassTag](tb1: RowBasedTable[T1], tb
         override def apply(v1: T2): Any = colDef.asInstanceOf[RowBasedColumnDef[Any]].get(v1)
       }
     }
-    val selectFunc1 = (t1: T1) => new Row(select1.map(_(t1)).toArray)
-    val selectFunc2 = (t2: T2) => new Row(select2.map(_(t2)).toArray)
+    val selectFunc1 = RowBasedStatementCompiler.toRowBuilder[T1](select1)
+    val selectFunc2 = RowBasedStatementCompiler.toRowBuilder[T2](select2)
 
     //TODO: Optimize with table specific filter
     //    val d1 = tb1.data.withOption(option).map(selectFunc1)
@@ -68,28 +68,23 @@ class JoinedRowBasedTable[T1: ClassTag, T2: ClassTag](tb1: RowBasedTable[T1], tb
 
     //    val crossProduct = d1.withOption(option).join(d2, (r: Row) => joinExtractor.apply(r))
 
-    val joinedData: RowBasedData[Row] = if (false && jointPoint == null) {
-      //tb1.crossProduct(tb2, selectFunc1, selectFunc2)
-      throw new UnsupportedOperationException("Need to implement crossjoin efficiently")
+    val joinedData: RowBasedData[Row] = if (jointPoint == null) {
+      tb1.data.crossJoin(tb2.data, selectFunc1, selectFunc2)
     } else {
       val (leftKey, rightKey) = analyzeJointpoint[T1, T2](jointPoint)
-      tb1.data.withOption(option).joinData(tb2.data, leftKey, rightKey, selectFunc1, selectFunc2, joinType)
+      tb1.data.withOption(option).joinWithKey(tb2.data, leftKey, rightKey, selectFunc1, selectFunc2, joinType)
     }
     val newTable = tb1.createTable(resultSchema, joinedData)
     newTable.compile(stmt)
   }
 
-  def analyzeJointpoint[T, U](joinPoint: Condition): ((T) => Row, (U) => Row) = {
-    if (jointPoint == null) {
-      ((T) => Row.EMPTY_ROW, (U) => Row.EMPTY_ROW)
-    } else {
-      val analyzer = new JoinAnalyzer(this, tb1, tb2)
-      analyzer.traverse(joinPoint, new Object)
-      val (leftCols, rightCols) = (analyzer.tb1Columns, analyzer.tb2Columns)
-      val leftFunc = RowBasedStatementCompiler.toRowFunc(leftCols.map(compileColumn[T](_, tb1.schema)))
-      val rightFunc = RowBasedStatementCompiler.toRowFunc(rightCols.map(compileColumn[U](_, tb2.schema)))
-      (leftFunc, rightFunc)
-    }
+  def analyzeJointpoint[T, U](joinPoint: Condition): (RowBuilder[T], RowBuilder[U]) = {
+    val analyzer = new JoinAnalyzer(this, tb1, tb2)
+    analyzer.traverse(joinPoint, new Object)
+    val (leftCols, rightCols) = (analyzer.tb1Columns, analyzer.tb2Columns)
+    val leftFunc = RowBasedStatementCompiler.toRowBuilder(leftCols.map(compileColumn[T](_, tb1.schema)))
+    val rightFunc = RowBasedStatementCompiler.toRowBuilder(rightCols.map(compileColumn[U](_, tb2.schema)))
+    (leftFunc, rightFunc)
   }
 
   override def join(table: Table): JoinedTable = ???

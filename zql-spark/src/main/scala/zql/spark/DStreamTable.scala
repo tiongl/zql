@@ -87,39 +87,72 @@ class DStreamData[ROW: ClassTag](val stream: DStream[ROW], val option: CompileOp
 
   override def map[T: ClassTag](mapFunc: (ROW) => T): RowBasedData[T] = stream.map(mapFunc(_))
 
-  override def joinData[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean,
-    rowifier: (ROW, T) => Row): RowBasedData[Row] = ???
+  override def crossJoin[T: ClassTag](other: RowBasedData[T], leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T]): RowBasedData[Row] =
+    throw new IllegalArgumentException("crossjoin is not supported for streaming")
 
-  override def joinData[T: ClassTag](
+  override def joinWithKey[T: ClassTag](
     other: RowBasedData[T],
-    leftKeyFunc: (ROW) => Row, rightKeyFunc: (T) => Row,
-    leftSelect: (ROW) => Row, rightSelect: (T) => Row,
+    leftKeyFunc: RowBuilder[ROW], rightKeyFunc: RowBuilder[T],
+    leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T],
     joinType: JoinType
-  ): RowBasedData[Row] = other match {
-    case rightTable: DStreamData[T] =>
-      val groupByFunc = StateSpec.function(DStreamData.groupFunc _)
-      val leftStream = stream.map[(Row, Row)] {
-        r: ROW => (leftKeyFunc(r), leftSelect(r))
-      }.mapWithState(groupByFunc)
-      val rightStream = rightTable.stream.map[(Row, Row)] {
-        r: T => (rightKeyFunc(r), rightSelect(r))
-      }.mapWithState(groupByFunc)
-      val joined = leftStream.stateSnapshots().join(rightStream.stateSnapshots())
-      val results = joined.flatMap {
-        case (key, (left, right)) =>
-          var i = 0
-          val crossed = Utils.crossProduct(left, right, new RowCombiner[Row, Row])
-          crossed
-      }
-      new DStreamData(results, option, true)
+  ): RowBasedData[Row] = {
+    import DStreamData._
+    other match {
+      case rightTable: DStreamData[T] =>
+        val groupByFunc = StateSpec.function(DStreamData.groupFunc _)
+        val leftStream = stream.map[(Row, Row)] {
+          r: ROW => (leftKeyFunc(r), leftSelect(r))
+        }.mapWithState(groupByFunc)
+        val rightStream = rightTable.stream.map[(Row, Row)] {
+          r: T => (rightKeyFunc(r), rightSelect(r))
+        }.mapWithState(groupByFunc)
+
+        joinType match {
+          case JoinType.innerJoin =>
+            val joined = leftStream.stateSnapshots().join(rightStream.stateSnapshots())
+            val results = joined.flatMap {
+              case (key, (left, right)) =>
+                Row.crossProduct(left, right)
+            }
+            new DStreamData(results, option, true)
+          case JoinType.leftJoin =>
+            val joined = leftStream.stateSnapshots().leftOuterJoin(rightStream.stateSnapshots())
+            val results = joined.flatMap {
+              case (key, (left, rightOpt)) =>
+                var right = optToRow(rightOpt, Seq(Row.empty(rightSelect.card)))
+                Row.crossProduct(left, right)
+            }
+            new DStreamData(results, option, true)
+          case JoinType.rightJoin =>
+            val joined = leftStream.stateSnapshots().rightOuterJoin(rightStream.stateSnapshots())
+            val results = joined.flatMap {
+              case (key, (leftOpt, right)) =>
+                var left = optToRow(leftOpt, Seq(Row.empty(leftSelect.card)))
+                Row.crossProduct(left, right)
+            }
+            new DStreamData(results, option, true)
+          case JoinType.fullJoin =>
+            val joined = leftStream.stateSnapshots().fullOuterJoin(rightStream.stateSnapshots())
+            val results = joined.flatMap {
+              case (key, (leftOpt, rightOpt)) =>
+                var left = optToRow(leftOpt, Seq(Row.empty(leftSelect.card)))
+                var right = optToRow(rightOpt, Seq(Row.empty(rightSelect.card)))
+                Row.crossProduct(left, right)
+            }
+            new DStreamData(results, option, true)
+
+        }
+      case _ =>
+        throw new IllegalArgumentException("Can only join with DStreamData")
+    }
   }
 }
 
 object DStreamData {
-  //
-  //  def rowToKeyRow(r: (Row, Row)) = {
-  //    new RowWithKey(r._2.data, r._1).asInstanceOf[Row]
-  //  }
+  def optToRow[Row](opt: Option[Seq[Row]], default: Seq[Row]) = opt match {
+    case None => default
+    case Some(rows) => rows
+  }
 
   def distinctFunc(batchTime: Time, key: Row, value: Option[Row], state: State[Row]): Option[Row] = {
     val stateOpts = state.getOption()

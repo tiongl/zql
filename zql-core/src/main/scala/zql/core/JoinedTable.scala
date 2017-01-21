@@ -26,7 +26,7 @@ abstract class JoinedTable(val tb1: Table, val tb2: Table, val joinType: JoinTyp
     val sb = new StringBuilder
     val t1 = tb1.toSql(gen)
     val t2 = tb2.toSql(gen)
-    sb.append(t1 + " JOIN " + t2)
+    sb.append(t1 + " " + joinType.name.toUpperCase() + " JOIN " + t2)
     if (jointPoint != null) {
       sb.append(" ON ")
       sb.append(gen.visit(jointPoint, null))
