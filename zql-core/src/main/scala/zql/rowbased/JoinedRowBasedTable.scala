@@ -110,7 +110,6 @@ class JoinAnalyzer(jtb: JoinedTable, tb1: Table, tb2: Table) extends ColumnTrave
     val aRef = resolveReference(ec.a)
     val bRef = resolveReference(ec.b)
     val flags = (aRef.schema == tb1.schema, bRef.schema == tb2.schema, aRef.schema == tb2.schema, bRef.schema == tb1.schema)
-    println(flags)
     flags match {
       case (true, true, _, _) =>
         tb1Columns += ec.a

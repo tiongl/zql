@@ -53,7 +53,7 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
   it should "support simple data column" in supportSelectDataColumn
   it should "support simple filtering" in supportSimpleFiltering
   it should "support select count" in supportSelectCount
-  it should "support select count with groupby" in supportSelectCountWithGroupby
+  it should "support select sum with groupby" in supportSelectSumWithGroupby
   it should "support select distinct" in supportSelectDistinct
   it should "support select count distinct" in supportSelectCountDistinct
 
@@ -271,17 +271,18 @@ abstract class TableTest extends FlatSpec with Matchers with BeforeAndAfterAll w
     )
   }
 
-  def supportSelectCountWithGroupby = {
+  def supportSelectSumWithGroupby = {
     executeAndMatch(
-      select('firstName, count('age) as 'ageSum) from personTable groupBy ('firstName) having ('ageSum > 10), {
-        val linkedHash = new mutable.LinkedHashMap[Seq[Any], Row]
+      select('firstName, sum('age) as 'ageSum) from personTable groupBy ('firstName), {
+        val linkedHash = new mutable.HashMap[Seq[Any], Row]
         Utils.groupBy[Person, Row](
-          persons,
+          persons.sortBy(_.firstName),
           _.firstName,
-          p => new Row(Array(p.firstName, new Countable(1))),
+          p => new Row(Array(p.firstName, new Summable(p.age))),
           (a: Row, b: Row) => a.aggregate(b, Array(1))
         )
-      }.map(_.normalize).filter(_.data(1).asInstanceOf[Int] > 10).toList
+      }.map(_.normalize).toList,
+      true
     )
   }
 

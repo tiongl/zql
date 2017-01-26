@@ -48,14 +48,7 @@ class DStreamData[ROW: ClassTag](val stream: DStream[ROW], val option: CompileOp
     stream.map(t => (keyFunc(t), selectFunc(t))).mapWithState(groupByFunc)
   }
 
-  override def asList[T]: List[T] = ???
-  //  {
-  //    stream.foreachRDD {
-  //      rdd =>
-  //        println(rdd.collect().mkString(","))
-  //    }
-  //    List()
-  //  }
+  override def asList[T]: List[T] = throw new UnsupportedOperationException("Use getSnapshotCollector for collecting results")
 
   override def asQueue[T: ClassTag]: mutable.Queue[T] = {
     val queue = mutable.Queue[T]()
@@ -73,7 +66,6 @@ class DStreamData[ROW: ClassTag](val stream: DStream[ROW], val option: CompileOp
       case true =>
         new SnapshotStreamCollector[ROW](stream)
     }
-    //    new DStreamSnapshotCollector[ROW](stream)
   }
 
   override def asRowQueue = {
@@ -99,13 +91,13 @@ class DStreamData[ROW: ClassTag](val stream: DStream[ROW], val option: CompileOp
     import DStreamData._
     other match {
       case rightTable: DStreamData[T] =>
-        val groupByFunc = StateSpec.function(DStreamData.groupFunc _)
+        val addToSet = StateSpec.function(DStreamData.addToSet _)
         val leftStream = stream.map[(Row, Row)] {
           r: ROW => (leftKeyFunc(r), leftSelect(r))
-        }.mapWithState(groupByFunc)
+        }.mapWithState(addToSet)
         val rightStream = rightTable.stream.map[(Row, Row)] {
           r: T => (rightKeyFunc(r), rightSelect(r))
-        }.mapWithState(groupByFunc)
+        }.mapWithState(addToSet)
 
         joinType match {
           case JoinType.innerJoin =>
@@ -178,7 +170,7 @@ object DStreamData {
     Some(last)
   }
 
-  def groupFunc(batchTime: Time, key: Row, value: Option[Row], state: State[Seq[Row]]): Option[Seq[Row]] = {
+  def addToSet(batchTime: Time, key: Row, value: Option[Row], state: State[Seq[Row]]): Option[Seq[Row]] = {
     val last: Seq[Row] = (value, state.getOption()) match {
       case (Some(a), Some(b)) => Seq(a) ++ b
       case (None, Some(b)) => b

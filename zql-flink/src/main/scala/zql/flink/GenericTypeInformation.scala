@@ -16,6 +16,9 @@ import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 
 class GenericTypeInfo[T: ClassTag](func: () => T, numOfFields: Int = 1, isKey: Boolean = false) extends TypeInformation[T] {
+
+  val rtClass = scala.reflect.classTag[T].runtimeClass
+
   override def isBasicType: Boolean = false
 
   override def getTotalFields: Int = numOfFields
@@ -32,9 +35,12 @@ class GenericTypeInfo[T: ClassTag](func: () => T, numOfFields: Int = 1, isKey: B
 
   override def isTupleType: Boolean = false
 
-  override def toString: String = "RowTypeInformation"
+  override def toString: String = "GenericTypeInfo[" + rtClass.getSimpleName + "]"
 
-  override def equals(obj: Any): Boolean = false
+  override def equals(obj: Any): Boolean = obj match {
+    case t: GenericTypeInfo[T] => true
+    case _ => false
+  }
 
   override def hashCode: Int = 0
 }
@@ -136,7 +142,7 @@ class BasicRowTypeComparator(ascending: Boolean) extends BasicTypeComparator[Row
   override def duplicate(): TypeComparator[Row] = new BasicRowTypeComparator(ascending)
 }
 
-class BasicRowTypeInfo extends BasicTypeInfo[Row](classOf[Row], Array(classOf[Row]), new GenericTypeSerializer[Row](() => new Row()), classOf[BasicRowTypeComparator]) {
+class BasicRowTypeInfo extends BasicTypeInfo[Row](classOf[Row], Array(classOf[Row]), BasicRowTypeInfo.serializer, classOf[BasicRowTypeComparator]) {
   override def isBasicType: Boolean = true
 
   override def getTotalFields: Int = 1
@@ -152,6 +158,10 @@ class BasicRowTypeInfo extends BasicTypeInfo[Row](classOf[Row], Array(classOf[Ro
   override def getTypeClass: Class[Row] = classOf[Row]
 
   override def isTupleType: Boolean = false
+}
+
+object BasicRowTypeInfo {
+  val serializer = new GenericTypeSerializer[Row](() => new Row)
 }
 
 class RowTypeInfo(typeInfo: TypeInformation[_]*) extends CompositeType[Row](classOf[Row]) {

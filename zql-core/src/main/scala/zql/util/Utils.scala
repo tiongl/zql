@@ -1,5 +1,7 @@
 package zql.util
 
+import zql.rowbased.Row
+
 import scala.collection.mutable
 
 object Utils {
@@ -83,6 +85,18 @@ object Utils {
       left =>
         rhs.map {
           right => func(left, right)
+        }
+    }
+  }
+
+  def crossProductWithFunc[T, U](lhs: Iterator[T], rhs: Iterator[U], lhsFunc: (T) => Row, rhsFunc: (U) => Row): Iterator[Row] = {
+    lhs.flatMap {
+      left =>
+        rhs.map {
+          right =>
+            val leftRow = lhsFunc(left)
+            val rightRow = rhsFunc(right)
+            Row.combine(leftRow, rightRow)
         }
     }
   }
