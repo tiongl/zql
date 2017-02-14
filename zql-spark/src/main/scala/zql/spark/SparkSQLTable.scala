@@ -19,13 +19,6 @@ class SparkSQLTable(val session: SparkSession, val schema: Schema) extends Table
     df.collect().toList.asInstanceOf[List[T]]
   }
 
-  override def join(t: Table) = t match {
-    case st: SparkSQLTable =>
-      new JoinedSparkSqlTable(session, this, st)
-    case _ =>
-      throw new IllegalArgumentException("Cannot join with different table type")
-  }
-
   override def compile(stmt: Statement): Executable[Table] = new SparkSQLStatementCompiler(this, session).compile(stmt, schema)
 
   override def as(alias: Symbol): Table = new SparkSQLTable(session, schema.as(alias))
@@ -35,6 +28,13 @@ class SparkSQLTable(val session: SparkSession, val schema: Schema) extends Table
     list.map {
       sparkRow => new Row(sparkRow.toSeq.toArray)
     }
+  }
+
+  protected def joinWithType(t: Table, jt: JoinType): JoinedTable = t match {
+    case st: SparkSQLTable =>
+      new JoinedSparkSqlTable(session, this, st, jt)
+    case _ =>
+      throw new IllegalArgumentException("Cannot join with different table type")
   }
 }
 
@@ -48,7 +48,7 @@ object SparkSQLTable {
   }
 }
 
-class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: SparkSQLTable) extends JoinedTable(tb1, tb2) {
+class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: SparkSQLTable, joinType: JoinType) extends JoinedTable(tb1, tb2, joinType) {
   override def schema: Schema = new JoinedSchema(tb1, tb2)
 
   override def name: String = s"joined_${tb1.name}_${tb2.name}"
@@ -61,9 +61,6 @@ class JoinedSparkSqlTable(val session: SparkSession, tb1: SparkSQLTable, tb2: Sp
     new SparkSQLStatementCompiler(this, session).compile(stmt, schema)
   }
 
-  override def as(alias: Symbol) = throw new IllegalArgumentException("Not supported as on joined table")
-
-  override def join(table: Table): JoinedTable = throw new IllegalArgumentException("Not supported join as on joined table")
 }
 
 class SparkSQLStatementCompiler(table: Table, session: SparkSession) extends StatementCompiler[SparkSQLTable] {

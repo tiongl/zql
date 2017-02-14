@@ -2,14 +2,15 @@ package zql.flink
 
 import java.lang.Iterable
 
-import org.apache.flink.api.common.functions.{ FlatMapFunction, GroupCombineFunction }
+import org.apache.flink.api.common.functions.{ MapFunction, FlatMapFunction, GroupCombineFunction }
 import org.apache.flink.api.common.operators.Order
 import org.apache.flink.api.common.typeinfo.{ BasicTypeInfo, TypeInformation }
 import org.apache.flink.api.scala.DataSet
 import org.apache.flink.util.Collector
 import zql.core._
-import zql.rowbased.{ Row, RowBasedTable, RowBasedData }
+import zql.rowbased._
 import zql.schema.Schema
+import zql.util.Utils
 
 import scala.collection.JavaConversions._
 import scala.reflect.ClassTag
@@ -21,6 +22,8 @@ class FlinkData[ROW: ClassTag](val ds: DataSet[ROW], val option: CompileOption =
   val resultSchema = if (option.contains("resultSchema")) option("resultSchema").asInstanceOf[Schema] else null
 
   implicit def dsToData[T: ClassTag](newDs: DataSet[T]) = new FlinkData[T](newDs, option)
+
+  implicit val rowTypeInfo = new BasicRowTypeInfo
 
   override def isLazy: Boolean = true
 
@@ -55,44 +58,78 @@ class FlinkData[ROW: ClassTag](val ds: DataSet[ROW], val option: CompileOption =
 
   //  def groupBy(keyFunc: (ROW) => Row, selectFunc: (ROW) => Row, aggregatableIndices: Array[Int]): RowBasedData[Row]
   override def groupBy(keyFunc: (ROW) => Row, valueFunc: (ROW) => Row, groupFunc: (Row, Row) => Row): RowBasedData[Row] = {
-    implicit val seqKeyTypeInfo = createTypeInfo(stmtInfo.stmt.groupBy.map(_.dataType))
-    implicit val rowTypeInfo = createTypeInfo(stmtInfo.expandedSelects.map(_.dataType))
     val func = new GroupCombineFunction[ROW, Row] {
       override def combine(values: Iterable[ROW], out: Collector[Row]): Unit = {
         val outputRow = values.map(valueFunc(_)).reduce(groupFunc(_, _))
         out.collect(outputRow)
       }
     }
-    ds.groupBy(keyFunc)(seqKeyTypeInfo).combineGroup(func)(rowTypeInfo, scala.reflect.classTag[Row])
+    ds.groupBy(keyFunc).combineGroup(func)
   }
 
-  override def join[T: ClassManifest](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = {
+  override def crossJoin[T: ClassTag](other: RowBasedData[T], leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T]): RowBasedData[Row] = {
     val otherDs = other.asInstanceOf[FlinkData[T]].ds
     val joined = this.asInstanceOf[FlinkData[(ROW, T)]].ds.join(otherDs)
-    //    stmtInfo.stmt.from.
     val crossProduct = ds.cross(otherDs)
-    val mapFunc = new FlatMapFunction[(ROW, T), Row] {
-      override def flatMap(value: (ROW, T), out: Collector[Row]): Unit = {
-        val r = rowifier(value._1, value._2)
-        val bool = jointPoint.apply(r)
-        if (bool) out.collect(r)
+    val mapFunc = new MapFunction[(ROW, T), Row] {
+      override def map(value: (ROW, T)): Row = {
+        val (left, right) = (value._1, value._2)
+        val leftRow = leftSelect(left)
+        val rightRow = rightSelect(right)
+        Row.combine(leftRow, rightRow)
       }
     }
-    val typeInfo = createTypeInfo(stmtInfo.resultSchema.allColumns.map(_.dataType))
-    crossProduct.flatMap { mapFunc }(typeInfo, scala.reflect.classTag[Row])
+    val typeInfo = new BasicRowTypeInfo
+    crossProduct.map(mapFunc)(typeInfo, scala.reflect.classTag[Row])
   }
 
-  override def sortBy[T: ClassManifest](keyFunc: (ROW) => T, ordering: Ordering[T]): RowBasedData[ROW] = {
+  override def sortBy[T: ClassTag](keyFunc: (ROW) => T, ordering: Ordering[T]): RowBasedData[ROW] = {
     implicit val keyTypeInfo = createTypeInfo(stmtInfo.stmt.orderBy.map(_.dataType)).asInstanceOf[TypeInformation[T]]
-    //    ds.setParallelism(1).sortPartition(keyFunc, Order.ASCENDING)
+    //TODO; This is just partially working as apache flink doesn't support global sort
     ds.partitionByRange(keyFunc).sortPartition(keyFunc, Order.ASCENDING)
+  }
+
+  override def joinWithKey[T: ClassTag](
+    other: RowBasedData[T],
+    leftKeyFunc: RowBuilder[ROW], rightKeyFunc: RowBuilder[T],
+    leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T],
+    joinType: JoinType
+  ): RowBasedData[Row] = other match {
+    case rightData: FlinkData[T] =>
+      //TODO: Check whether empty key func would cause single hotspot
+      val outFunc = (a: ROW, b: T) => {
+        val left = if (a == null) Row.empty(leftSelect.card) else leftSelect(a)
+        val right = if (b == null) Row.empty(rightSelect.card) else rightSelect(b)
+        Row.combine(left, right)
+      }
+
+      joinType match {
+        case JoinType.innerJoin =>
+          val joinedDataset = ds.join(rightData.ds).where(leftKeyFunc(_)).equalTo(rightKeyFunc(_))
+          val results = joinedDataset.map[Row] {
+            t: (ROW, T) =>
+              val left = leftSelect(t._1)
+              val right = rightSelect(t._2)
+              Row.combine(left, right)
+          }
+          results
+        case JoinType.leftJoin =>
+          ds.leftOuterJoin(rightData.ds).where(leftKeyFunc(_)).equalTo(rightKeyFunc(_)).apply(outFunc)
+        case JoinType.rightJoin =>
+          ds.rightOuterJoin(rightData.ds).where(leftKeyFunc(_)).equalTo(rightKeyFunc(_)).apply(outFunc)
+        case JoinType.fullJoin =>
+          ds.fullOuterJoin(rightData.ds).where(leftKeyFunc(_)).equalTo(rightKeyFunc(_)).apply(outFunc)
+
+      }
+    case _ =>
+      throw new IllegalArgumentException("Unsupported join type " + other.toString)
   }
 }
 
 class FlinkDsTable[T: ClassTag](schema: Schema, dsData: FlinkData[T]) extends RowBasedTable[T](schema) {
   override def data: RowBasedData[T] = dsData
 
-  override def createTable[T: ClassManifest](newSchema: Schema, rowBased: RowBasedData[T]): RowBasedTable[T] = new FlinkDsTable[T](newSchema, rowBased.asInstanceOf[FlinkData[T]])
+  override def createTable[T: ClassTag](newSchema: Schema, rowBased: RowBasedData[T]): RowBasedTable[T] = new FlinkDsTable[T](newSchema, rowBased.asInstanceOf[FlinkData[T]])
 
 }
 

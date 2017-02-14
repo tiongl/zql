@@ -12,7 +12,17 @@ abstract class Table {
 
   def as(alias: Symbol): Table
 
-  def join(table: Table): JoinedTable
+  def join(table: Table): JoinedTable = innerJoin(table)
+
+  protected def joinWithType(table: Table, jt: JoinType): JoinedTable
+
+  def innerJoin(table: Table): JoinedTable = joinWithType(table, JoinType.innerJoin)
+
+  def leftJoin(table: Table): JoinedTable = joinWithType(table, JoinType.leftJoin)
+
+  def rightJoin(table: Table): JoinedTable = joinWithType(table, JoinType.rightJoin)
+
+  def fullJoin(table: Table): JoinedTable = joinWithType(table, JoinType.fullJoin)
 
   def name: String = schema.name
 

@@ -1,7 +1,7 @@
 package zql.list
 
 import zql.core._
-import zql.rowbased.{ Row, RowBasedData, RowBasedTable }
+import zql.rowbased._
 import zql.schema.Schema
 import zql.util.Utils
 
@@ -47,30 +47,79 @@ class ListData[ROW: ClassTag](val list: List[ROW], val option: CompileOption = n
 
   override def distinct() = list.distinct
 
-  override def join[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row): RowBasedData[Row] = {
-    if (this.isInstanceOf[RowBasedData[Row]]) {
-      other match {
-        case rbd: ListData[Row] =>
-          val newList = list.asInstanceOf[List[Row]].flatMap {
-            t1 =>
-              rbd.list.flatMap {
-                t2 =>
-                  val allData = t1.data ++ t2.data
-                  val newRow = new Row(allData)
-                  if (jointPoint.apply(newRow)) {
-                    Seq(newRow)
-                  } else {
-                    None
-                  }
-              }
-          }
-          newList
-        case _ =>
-          throw new IllegalArgumentException("Joining with " + other.getClass + " is not supported")
-      }
-    } else {
-      throw new IllegalArgumentException("Can only join if this is instance of RowBasedData[Row]")
+  override def crossJoin[T: ClassTag](other: RowBasedData[T], leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T]): RowBasedData[Row] = {
+    other match {
+      case rbd: ListData[T] =>
+        val newList = list.flatMap {
+          t1 =>
+            rbd.list.map {
+              t2 =>
+                val t1Row = leftSelect(t1)
+                val t2Row = rightSelect(t2)
+                Row.combine(t1Row, t2Row)
+            }
+        }
+        newList
+      case _ =>
+        throw new IllegalArgumentException("Joining with " + other.getClass + " is not supported")
     }
   }
 
+  override def joinWithKey[T: ClassTag](
+    other: RowBasedData[T],
+    leftKeyFunc: RowBuilder[ROW], rightKeyFunc: RowBuilder[T],
+    leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T],
+    joinType: JoinType
+  ): RowBasedData[Row] = {
+
+    def listOrElse(rowsOpt: Option[Seq[Row]], noneResult: Seq[Row]) = rowsOpt match {
+      case None => noneResult
+      case Some(rows) => rows
+    }
+
+    other match {
+      case rhs: ListData[T] =>
+        val leftMap = Utils.groupBy[ROW, Row, Row](list, leftKeyFunc, leftSelect)
+        val rightMap = Utils.groupBy[T, Row, Row](rhs.list, rightKeyFunc, rightSelect)
+        joinType match {
+          case JoinType.innerJoin =>
+            val allRows = leftMap.flatMap {
+              case (leftkey, leftRows) =>
+                val rightRows = listOrElse(rightMap.get(leftkey), Seq())
+                Row.crossProduct(leftRows, rightRows)
+            }
+            allRows.toList
+          case JoinType.leftJoin =>
+            val allRows = leftMap.flatMap {
+              case (leftkey, leftRows) =>
+                val rightRows = listOrElse(rightMap.get(leftkey), Seq(Row.empty(rightSelect.card)))
+                Row.crossProduct(leftRows, rightRows)
+            }
+            allRows.toList
+          case JoinType.rightJoin =>
+            val allRows = rightMap.flatMap {
+              case (rightKey, rightRows) =>
+                val leftRows = listOrElse(leftMap.get(rightKey), Seq(Row.empty(leftSelect.card)))
+                Row.crossProduct(leftRows, rightRows)
+            }
+            allRows.toList
+          case JoinType.fullJoin =>
+            val allLeftRows = leftMap.flatMap {
+              case (leftkey, leftRows) =>
+                val rightRows = listOrElse(rightMap.get(leftkey), Seq(Row.empty(rightSelect.card)))
+                Row.crossProduct(leftRows, rightRows)
+            }
+            val remainKeys = rightMap.keySet -- leftMap.keySet
+            val remainRows = remainKeys.flatMap {
+              rightKey =>
+                val rightRows = rightMap(rightKey)
+                val leftRows = Seq(Row.empty(leftSelect.card))
+                Row.crossProduct(leftRows, rightRows)
+            }
+            (allLeftRows ++ remainRows).toList
+        }
+      case _ =>
+        throw new IllegalArgumentException("Joining with " + other.getClass + " is not supported")
+    }
+  }
 }

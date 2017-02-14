@@ -1,15 +1,23 @@
 package zql.rowbased
 
-import zql.core.CompileOption
+import zql.core.{ JoinType, CompileOption }
+import zql.rowbased.RowBuilder.BUILDER
 
 import scala.reflect.ClassTag
+
+abstract class RowBuilder[T](val card: Int) extends BUILDER[T] with Serializable
+
+object RowBuilder {
+  type BUILDER[T] = (T) => Row
+}
 
 abstract class RowBasedData[ROW: ClassTag] {
   def option: CompileOption
   def withOption(option: CompileOption): RowBasedData[ROW]
   def slice(offset: Int, until: Int): RowBasedData[ROW]
   def filter(filter: (ROW) => Boolean): RowBasedData[ROW]
-  def groupBy(keyFunc: (ROW) => Row, selectFunc: (ROW) => Row, groupFunc: (Row, Row) => Row): RowBasedData[Row]
+  def groupBy(keyFunc: (ROW) => Row, selectFunc: (ROW) => Row,
+    groupFunc: (Row, Row) => Row): RowBasedData[Row]
 
   def reduce(reduceFunc: (ROW, ROW) => ROW): RowBasedData[ROW]
   def map[T: ClassTag](mapFunc: (ROW) => T): RowBasedData[T]
@@ -18,16 +26,15 @@ abstract class RowBasedData[ROW: ClassTag] {
   def asList[T]: List[T]
   def isLazy: Boolean
   def distinct(): RowBasedData[ROW]
-  def join[T: ClassTag](other: RowBasedData[T], jointPoint: (Row) => Boolean, rowifier: (ROW, T) => Row = new RowCombiner[ROW, T]()): RowBasedData[Row]
+  def crossJoin[T: ClassTag](other: RowBasedData[T], leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T]): RowBasedData[Row]
+  def joinWithKey[T: ClassTag](
+    other: RowBasedData[T],
+    leftKeyFunc: RowBuilder[ROW], rightKeyFunc: RowBuilder[T],
+    leftSelect: RowBuilder[ROW], rightSelect: RowBuilder[T],
+    joinType: JoinType
+  ): RowBasedData[Row]
 
   /** for doing any last step of result preparation **/
   def resultData: RowBasedData[ROW] = this
 }
 
-class RowCombiner[A, B] extends ((A, B) => Row) with Serializable {
-  override def apply(v1: A, v2: B): Row = {
-    val r1 = v1.asInstanceOf[Row]
-    val r2 = v2.asInstanceOf[Row]
-    new Row(r1.data ++ r2.data)
-  }
-}

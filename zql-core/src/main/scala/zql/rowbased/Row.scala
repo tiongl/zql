@@ -3,7 +3,7 @@ package zql.rowbased
 import zql.core.Aggregatable
 import zql.util.Utils
 
-case class Row(val data: Array[Any]) extends Comparable[Row] {
+case class Row(val data: Array[Any] = Array()) extends Comparable[Row] {
 
   def aggregate(row: Row, indices: Array[Int]): Row = {
     //TODO: make sure this won't have side effect as we use shallow copy
@@ -29,7 +29,7 @@ case class Row(val data: Array[Any]) extends Comparable[Row] {
     new Row(newData)
   }
 
-  override lazy val hashCode = data.map(_.hashCode()).sum
+  override lazy val hashCode = data.map(d => if (d == null) 0 else d.hashCode()).sum
 
   override def equals(obj: scala.Any): Boolean = if (obj == null) false else obj.asInstanceOf[Row].data.sameElements(data)
 
@@ -59,6 +59,23 @@ object Row {
   implicit val rowOrdering = new RowOrdering()
   implicit val EMPTY_ROW = new Row(Array()) {
     override def aggregate(row: Row, indices: Array[Int]): Row = row
+  }
+
+  def empty(num: Int) = {
+    new Row(new Array(num))
+  }
+
+  def combine(a: Row, b: Row) = {
+    new Row(a.data ++ b.data)
+  }
+
+  def crossProduct(lhs: Iterable[Row], rhs: Iterable[Row]): Iterable[Row] = {
+    lhs.flatMap {
+      left =>
+        rhs.map {
+          right => Row.combine(left, right)
+        }
+    }
   }
 }
 

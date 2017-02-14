@@ -5,6 +5,9 @@ import zql.schema.Schema
 
 object RowBasedStatementCompiler {
   def toRowFunc[ROW](selects: Seq[ColumnAccessor[ROW, _]]) = (row: ROW) => new Row(selects.map(s => s.apply(row)).toArray)
+  def toRowBuilder[ROW](selects: Seq[ColumnAccessor[ROW, _]]) = new RowBuilder[ROW](selects.length) {
+    def apply(row: ROW) = new Row(selects.map(s => s.apply(row)).toArray)
+  }
   def toFunc[ROW, T](accessor: ColumnAccessor[ROW, T]): (ROW) => T = (row: ROW) => accessor.apply(row)
   def aggregateFunc(aggIndices: Array[Int]) = (a: Row, b: Row) => a.aggregate(b, aggIndices)
 

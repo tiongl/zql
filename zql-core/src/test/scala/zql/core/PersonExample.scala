@@ -21,6 +21,7 @@ trait PersonExample {
   val departments = Seq(
     new Department(0, "Finance"),
     new Department(1, "Engineering"),
-    new Department(2, "Sales")
+    new Department(2, "Sales"),
+    new Department(4, "Marketing")
   ).toList
 }
