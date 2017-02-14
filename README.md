@@ -1,22 +1,24 @@
 # ZQL
 
-ZQL is a scala SQL-like DSL that is designed to be executable across different data persistent and distributed aggregation system including RDBMS, MapReduce, Spark, Storm and more. 
+ZQL is a scala-based DSL that allows developer to quickly develop big-data processing application using uniform SQL-like interface. 
+It is designed to be executable across different data persistent and distributed aggregation system including RDBMS, MapReduce, Spark, Storm and more. 
 
+#Why
 The main reasons for the inception of ZQL are:
 
 1. It makes application more portable by having a universal SQL programming interface 
-2. It reduces the chance of logical error when translative a business rule (SQL) into low level api (rdd, dataframe and what not)
+2. It reduces the chance of logical error when translative a business logic into an application (because SQL is closer to application logic than low level api)
 3. It allows rapid development using the universal programming interface and avoid learning curve of low level api
 
 
 ## Features
 The features of ZQL include:
 
--   SQL-based DSL
+-   Unified SQL-based DSL for batch or streaming data processing across data process framework
 
--   Extensible DSL to cover more use-cases
+-   Chainable SQL
 
--   Extensible execution layer that can be used to extend the coverage of persistent and aggregation system
+-   Stateful streaming sql extension with windowing support (work-in-progress)
 
 ##Example
 
@@ -68,12 +70,34 @@ The main ZQL DSL are decoupled from the runtime that support the execution of th
 
 ** Currently only List (ListTable) and Spark (RDDTable and SparkSQLTable) runtime are implemented. More will come soon.
 
-# Supported Syntax
+##Supported Syntax##
+As there are many variation in SQL-dialect, we only selectively implement some of the features that is most relevant now. 
 Currently the DSL support the common semantic in SQL
 
-- Select ... where ... group by ... having ... order by ... limit ...
-- Join support (for tables of same runtime)
-- UDF support include count, sum
+Select ... where ... group by ... having ... order by ... limit ...
+Join support (for tables of same runtime)
+UDF support include count, sum
+
+Here are the list of support SQL dsl you can use
+
+<https://github.com/theel/zql/blob/master/zql-core/src/test/scala/zql/core/DslTest.scala>
+
+
+
+##Supported Runtime##
+
+These are the supported runtimes and some notes about them. Not all runtime support all features. 
+
+Runtime       | Table support   | Batch/Streaming |Description        
+------------- | ----------------|-----------------|-----------
+core			 | ListTable       | Batch           |This supports processing of in memory list, sql style
+spark         | RDDTable        | Batch           |This supports aggregation of RDD[T]
+              | SparkSQLTable   | Batch           |This supports SparkSQL (mainly passthrough)
+              | DStreamTable    | Streaming       |This supports spark streaming
+flink         | FlinkDsTable    | Batch           |This supports flink dataset processing
+              | FlinkStreamTable| Streaming       |This supports flink datastream processing
+              
+                            
 
 # Getting started
 

@@ -60,7 +60,10 @@ class DslTest extends FlatSpec with Matchers with PersonExample {
 
     //join syntax
     select(*) from (table as 't1, table as 't2) orderBy ('t1_id, 't2_id)
-    select(*) from ((table as 't1) join (table as 't2)) orderBy ('t1_id, 't2_id)
+    select(*) from ((table as 't1) join (table as 't2) on (c"t1.firstName" === c"t2.firstName")) orderBy ('t1_id, 't2_id)
+    select(*) from ((table as 't1) leftJoin (table as 't2) on (c"t1.firstName" === c"t2.firstName")) orderBy ('t1_id, 't2_id)
+    select(*) from ((table as 't1) rightJoin (table as 't2) on (c"t1.firstName" === c"t2.firstName")) orderBy ('t1_id, 't2_id)
+    select(*) from ((table as 't1) fullJoin (table as 't2) on (c"t1.firstName" === c"t2.firstName")) orderBy ('t1_id, 't2_id)
 
   }
 }

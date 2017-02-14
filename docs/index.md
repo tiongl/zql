@@ -1,18 +1,5 @@
-#ZQL#
------
-
-##Description##
-
-ZQL is a scala-based DSL that allows developer to quickly develop big-data application using uniform SQL-like interface. 
-
-##Why##
-The main reasons for the development of ZQL are
-
-1. To make application development faster by using SQL-like interface
-2. To make the application less error-prone logically as business logic are  more readily translated to SQL query than low-level programming API of aggregation system
-3. To make such application portable across most distributed aggregation system (like Spark, MR, or Apache Flink)
-
-##Usage##
+#Quick Start#
+-------------
 ZQL are distributed into two forms:
 
 1. ZQL core api - which includes the language core
@@ -62,21 +49,6 @@ Here's an example show how this is done:
 ```
 
 Note that the resultTable itself is a table, so you further chain you queries to do further processing, or do join statement for different results.
-
-##Supported Syntax##
-As there are many variation in SQL-dialect, we only selectively implement some of the features that is most relevant now. Here are the list of support SQL dsl you can use
-
-<https://github.com/theel/zql/blob/master/zql-core/src/test/scala/zql/core/DslTest.scala>
-
-##Supported Runtime##
-
-These are the supported runtimes and some notes about them. Not all runtime support all features. 
-
-Runtime       | Table support | Description        
-------------- | --------------|------------
-core			 | ListTable     | This support processing of in memory list, sql style
-spark         | RDDTable      | This support aggregation of RDD[T]
-              | SparkSQLTable | This support SparkSQL (mainly passthrough)
 
 ##Laziness##
 A runtime can be lazy in the sense that the execution doesn't trigger until you need to results. For example, spark runtime are lazy in the sense that all execution only happen when you try to collect the results. You can chain more than 2 statements in your application but the execution will happen during result collection phase
