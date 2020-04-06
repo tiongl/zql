@@ -20,7 +20,7 @@ The features of ZQL include:
 
 -   Stateful streaming sql extension with windowing support (work-in-progress)
 
-##Example
+## Example
 
 ```scala
     //the domain object
@@ -84,7 +84,7 @@ Here are the list of support SQL dsl you can use
 
 
 
-##Supported Runtime##
+## Supported Runtime ##
 
 These are the supported runtimes and some notes about them. Not all runtime support all features. 
 
