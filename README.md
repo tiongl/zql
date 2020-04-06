@@ -90,12 +90,12 @@ These are the supported runtimes and some notes about them. Not all runtime supp
 
 Runtime       | Table support   | Batch/Streaming |Description        
 ------------- | ----------------|-----------------|-----------
-core			 | ListTable       | Batch           |This supports processing of in memory list, sql style
+core          | ListTable       | Batch           |This supports processing of in memory list, sql style
 spark         | RDDTable        | Batch           |This supports aggregation of RDD[T]
-              | SparkSQLTable   | Batch           |This supports SparkSQL (mainly passthrough)
-              | DStreamTable    | Streaming       |This supports spark streaming
+spark         | SparkSQLTable   | Batch           |This supports SparkSQL (mainly passthrough)
+spark         | DStreamTable    | Streaming       |This supports spark streaming
 flink         | FlinkDsTable    | Batch           |This supports flink dataset processing
-              | FlinkStreamTable| Streaming       |This supports flink datastream processing
+flink         | FlinkStreamTable| Streaming       |This supports flink datastream processing
               
                             
 
