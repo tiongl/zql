@@ -62,8 +62,7 @@ The features of ZQL include:
 
 
 ## Below is the design for ZQL.
-![Design]
-(https://github.com/theel/zql/blob/master/docs/design.png?raw=true)
+![Design](https://github.com/theel/zql/blob/master/docs/design.png?raw=true)
 
 The main ZQL DSL are decoupled from the runtime that support the execution of the query expresssion. The runtime for different aggregation technology can be implemented and added easily. The separation allow the DSL to be truly aggregation technology agnostic.
 
